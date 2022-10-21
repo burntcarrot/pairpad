@@ -1,7 +1,7 @@
 package crdt
 
 // Document represents a document that would be edited by the users.
-type Doc struct {
+type Document struct {
 	siteID uint8
 	pairs  []pair
 }
