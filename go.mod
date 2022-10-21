@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/charmbracelet/bubbles v0.14.0
 	github.com/charmbracelet/bubbletea v0.22.1
+	github.com/gorilla/websocket v1.5.0
 )
 
 require (
