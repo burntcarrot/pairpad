@@ -9,7 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func main() {
+func UI() { //nolint:deadcode
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
 		log.Fatal(err)

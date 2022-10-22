@@ -5,6 +5,9 @@ go 1.18
 require (
 	github.com/charmbracelet/bubbles v0.14.0
 	github.com/charmbracelet/bubbletea v0.22.1
+	github.com/fatih/color v1.13.0
+	github.com/google/uuid v1.3.0
+	github.com/gorilla/websocket v1.5.0
 )
 
 require (
@@ -12,6 +15,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.5.0 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
