@@ -65,7 +65,7 @@ func main() {
 
 	// Send joining message.
 	msg := message{Username: name, Text: "has joined the chat.", Type: "info"}
-	conn.WriteJSON(msg)
+	_ = conn.WriteJSON(msg)
 
 	go readMessages(conn)        // Handle incoming messages concurrently.
 	writeMessages(conn, s, name) // Handle outgoing messages concurrently.
@@ -102,7 +102,7 @@ func writeMessages(conn ConnWriter, s Scanner, name string) {
 			// Handle quit event.
 			if msg.Text == "!q" {
 				fmt.Println("Goodbye!")
-				conn.WriteJSON(message{Username: name, Text: "has disconnected.", Type: "info"})
+				_ = conn.WriteJSON(message{Username: name, Text: "has disconnected.", Type: "info"})
 				conn.Close()
 				os.Exit(0)
 			}
