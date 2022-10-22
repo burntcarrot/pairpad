@@ -1,71 +1,108 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"log"
 	"net/http"
+	"time"
 
+	"github.com/fatih/color"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
-// Server address.
-var addr = "localhost:8080"
+type message struct {
+	Username string `json:"username"`
+	Text     string `json:"text"`
+	Type     string `json:"type"`
+	ID       uuid.UUID
+}
 
-// Temp counter.
-var counter = 0
-
-// Connection upgrader.
+// Upgrader instance to upgrade all HTTP connections to a WebSocket.
 var upgrader = websocket.Upgrader{}
 
-// Connection list.
-var conns []*websocket.Conn
+// Map to store currently active client connections.
+var activeClients = make(map[*websocket.Conn]uuid.UUID)
 
-// Echo handler.
-func echo(w http.ResponseWriter, r *http.Request) {
-	// Upgrade to WebSocket connection.
-	c, err := upgrader.Upgrade(w, r, nil)
+// Channel for client messages.
+var messageChan = make(chan message)
+
+func main() {
+	// Parse flags.
+	addr := flag.String("addr", ":9000", "Server's network address")
+	flag.Parse()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleConn)
+
+	// Handle incoming messages.
+	go handleMsg()
+
+	// Start the server.
+	log.Printf("Starting server on %s", *addr)
+	err := http.ListenAndServe(*addr, mux)
 	if err != nil {
-		log.Print("upgrade:", err)
-		return
-	}
-	defer c.Close()
-
-	// Add connection to connection list.
-	conns = append(conns, c)
-
-	for {
-		// Broadcast
-		for i, c := range conns {
-			mt, message, err := c.ReadMessage()
-			if err != nil {
-				log.Println("read:", err)
-				break
-			}
-
-			// Log for debugging purposes.
-			log.Printf("reading from conn %d, got state from: %s", i, message)
-
-			// Increment counter.
-			counter += 1
-
-			// Construct a new message to send to the client.
-			newMessage := fmt.Sprintf("conns: %d, %d %s", len(conns), counter, string(message))
-
-			// Send message to client.
-			err = c.WriteMessage(mt, []byte(newMessage))
-			if err != nil {
-				log.Println("write:", err)
-				break
-			}
-		}
+		log.Fatal("Error starting server, exiting.", err)
 	}
 }
 
-func main() {
-	// Register echo handler.
-	http.HandleFunc("/echo", echo)
+// handleConn handles incoming HTTP connections by adding the connection to activeClients and reads messages from the connection.
+func handleConn(w http.ResponseWriter, r *http.Request) {
+	// Upgrade incoming HTTP connections to WebSocket connections
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Error upgrading connection to websocket: %v", err)
+	}
+	defer conn.Close()
 
-	// Start server.
-	log.Printf("starting server on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	// Generate a UUID for the client.
+	activeClients[conn] = uuid.New()
+
+	for {
+		var msg message
+
+		// Read message from the connection.
+		err := conn.ReadJSON(&msg)
+		if err != nil {
+			log.Printf("Closing connection with ID: %v", activeClients[conn])
+			delete(activeClients, conn)
+			break
+		}
+
+		// Set message ID
+		msg.ID = activeClients[conn]
+
+		// Send message to messageChan.
+		messageChan <- msg
+	}
+}
+
+// handleMsg listens to the messageChan channel and broadcasts messages to other clients.
+func handleMsg() {
+	for {
+		// Get message from messageChan.
+		msg := <-messageChan
+
+		// Log each message to stdout.
+		t := time.Now().Format(time.ANSIC)
+		if msg.Type != "" {
+			color.Green("%s >> %s %s\n", t, msg.Username, msg.Text)
+		} else {
+			color.Green("%s >> %s: %s\n", t, msg.Username, msg.Text)
+		}
+
+		// Broadcast to all active clients.
+		for client, UUID := range activeClients {
+			// Check the UUID to prevent sending messages to their origin.
+			if msg.ID != UUID {
+				// Write JSON message.
+				err := client.WriteJSON(msg)
+				if err != nil {
+					log.Printf("Error sending message to client: %v", err)
+					client.Close()
+					delete(activeClients, client)
+				}
+			}
+		}
+	}
 }
