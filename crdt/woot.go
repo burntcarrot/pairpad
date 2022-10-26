@@ -15,7 +15,7 @@ type Document struct {
 type Character struct {
 	ID         string
 	Visible    bool
-	Alphabet   string
+	Value      string
 	IDPrevious string
 	IDNext     string
 }
@@ -28,10 +28,10 @@ var (
 	LocalClock = 0
 
 	// CharacterStart is placed at the start.
-	CharacterStart = Character{ID: "start", Visible: false, Alphabet: "", IDPrevious: "", IDNext: "end"}
+	CharacterStart = Character{ID: "start", Visible: false, Value: "", IDPrevious: "", IDNext: "end"}
 
 	// CharacterEnd is placed at the end.
-	CharacterEnd = Character{ID: "end", Visible: false, Alphabet: "", IDPrevious: "start", IDNext: ""}
+	CharacterEnd = Character{ID: "end", Visible: false, Value: "", IDPrevious: "start", IDNext: ""}
 
 	ErrPositionOutOfBounds = errors.New("position out of bounds")
 	ErrEmptyWCharacter     = errors.New("empty char ID provided")
@@ -52,7 +52,7 @@ func Content(doc Document) string {
 	value := ""
 	for _, char := range doc.Characters {
 		if char.Visible {
-			value += char.Alphabet
+			value += char.Value
 		}
 	}
 	return value
@@ -185,8 +185,8 @@ func (doc *Document) IntegrateInsert(char, charPrev, charNext Character) (*Docum
 	return doc.IntegrateInsert(char, subsequence[i-1], subsequence[i])
 }
 
-// GenerateInsert generates a character for a given alphabet.
-func (doc *Document) GenerateInsert(position int, alphabet string) (*Document, error) {
+// GenerateInsert generates a character for a given value.
+func (doc *Document) GenerateInsert(position int, value string) (*Document, error) {
 	// Increment local clock.
 	LocalClock++
 
@@ -205,7 +205,7 @@ func (doc *Document) GenerateInsert(position int, alphabet string) (*Document, e
 	char := Character{
 		ID:         fmt.Sprint(SiteID) + fmt.Sprint(LocalClock),
 		Visible:    true,
-		Alphabet:   alphabet,
+		Value:      value,
 		IDPrevious: charPrev.ID,
 		IDNext:     charNext.ID,
 	}
@@ -236,8 +236,8 @@ func (doc *Document) GenerateDelete(position int) *Document {
 // Implement the CRDT interface
 ////////////////////////////////
 
-func (doc *Document) Insert(position int, alphabet string) (string, error) {
-	newDoc, err := doc.GenerateInsert(position, alphabet)
+func (doc *Document) Insert(position int, value string) (string, error) {
+	newDoc, err := doc.GenerateInsert(position, value)
 	if err != nil {
 		return Content(*doc), err
 	}
