@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/burntcarrot/rowix/crdt"
 	"github.com/fatih/color"
 	"github.com/gorilla/websocket"
 )
@@ -49,6 +50,10 @@ func main() {
 	s = bufio.NewScanner(os.Stdin)
 	s.Scan()
 	name = s.Text()
+
+	var doc = crdt.New()
+	crdt.IsCRDT(&doc)
+	fmt.Println(doc.Length())
 
 	// Display welcome message.
 	color.Green("\nWelcome %s!\n", name)
