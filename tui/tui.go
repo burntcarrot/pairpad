@@ -1,110 +1,232 @@
-package main
+package tui
 
-import (
-	"fmt"
-	"log"
+// type message struct {
+// 	Username  string    `json:"username"`
+// 	Text      string    `json:"text"`
+// 	Type      string    `json:"type"`
+// 	Operation Operation `json:"operation"`
+// }
 
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-)
+// type Operation struct {
+// 	Position int    `json:"position"`
+// 	Value    string `json:"value"`
+// }
 
-func UI() { //nolint:deadcode
-	p := tea.NewProgram(initialModel())
-	if err := p.Start(); err != nil {
-		log.Fatal(err)
-	}
-}
+// type Editor struct {
+// 	text   []rune
+// 	x      int
+// 	y      int
+// 	width  int
+// 	height int
+// }
 
-type (
-	errMsg error
-)
+// func NewEditor() *Editor {
+// 	return &Editor{
+// 		x: 1,
+// 		y: 1,
+// 	}
+// }
 
-type model struct {
-	textInput textinput.Model
-	textarea  textarea.Model
-	err       error
-	Quitting  bool
-	LoggedIn  bool
-}
+// func (e *Editor) GetText() []rune {
+// 	return e.text
+// }
 
-func initialModel() model {
-	ti := textinput.New()
-	ti.Placeholder = "Username"
-	ti.Focus()
-	ti.CharLimit = 156
-	ti.Width = 20
+// func (e *Editor) SetText(text string) {
+// 	e.text = []rune(text)
+// }
 
-	ta := textarea.New()
-	ta.Placeholder = "Write some text here..."
-	// ta.Focus()
+// func (e *Editor) GetX() int {
+// 	return e.x
+// }
 
-	return model{
-		textInput: ti,
-		textarea:  ta,
-		err:       nil,
-	}
-}
+// func (e *Editor) GetY() int {
+// 	return e.y
+// }
 
-func (m model) Init() tea.Cmd {
-	return textinput.Blink
-}
+// func (e *Editor) GetWidth() int {
+// 	return e.width
+// }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
+// func (e *Editor) GetHeight() int {
+// 	return e.height
+// }
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
-			m.Quitting = true
-			return m, tea.Quit
-		case tea.KeyEnter:
-			m.LoggedIn = true
-		}
+// func (e *Editor) SetSize(w, h int) {
+// 	e.width = w
+// 	e.height = h
+// }
 
-	// We handle errors just like any other message
-	case errMsg:
-		m.err = msg
-		return m, nil
-	}
+// func (e *Editor) AddRune(r rune) {
+// 	cursor := e.calcCursor()
+// 	if cursor == 0 {
+// 		e.text = append([]rune{r}, e.text...)
+// 	} else if cursor < len(e.text) {
+// 		e.text = append(e.text[:cursor], e.text[cursor-1:]...)
+// 		e.text[cursor] = r
+// 	} else {
+// 		e.text = append(e.text[:cursor], r)
+// 	}
+// 	if r == rune('\n') {
+// 		e.x = 1
+// 		e.y += 1
+// 	} else {
+// 		e.x += runewidth.RuneWidth(r)
+// 	}
+// }
 
-	if !m.LoggedIn {
-		m.textInput, cmd = m.textInput.Update(msg)
-	} else {
-		m.textarea, cmd = m.textarea.Update(msg)
-		m.textarea.Focus()
-	}
+// func (e *Editor) DeletePrevRune() {
+// }
 
-	return m, cmd
-}
+// func (e *Editor) Draw() {
+// 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+// 	termbox.SetCursor(e.x-1, e.y-1)
+// 	x := 0
+// 	y := 0
+// 	for i := 0; i < len(e.text); i++ {
+// 		if e.text[i] == rune('\n') {
+// 			x = 0
+// 			y++
+// 		} else {
+// 			if x < e.width {
+// 				termbox.SetCell(x, y, e.text[i], termbox.ColorDefault, termbox.ColorDefault)
+// 			}
+// 			x = x + runewidth.RuneWidth(e.text[i])
+// 		}
+// 	}
+// 	e.debugDraw()
+// 	termbox.Flush()
+// }
 
-func loginView(m model) string {
-	return fmt.Sprintf(
-		"Enter username:\n\n%s\n\n%s",
-		m.textInput.View(),
-		"(esc to quit)",
-	) + "\n"
-}
+// func (e *Editor) debugDraw() {
+// 	x, y := e.calcCursorXY(e.calcCursor())
+// 	str := fmt.Sprintf("x=%d, y=%d, cursor=%d, len(text)=%d, x,y=%d,%d", e.x, e.y, e.calcCursor(), len(e.text), x, y)
+// 	for i, r := range []rune(str) {
+// 		termbox.SetCell(i, e.height-1, r, termbox.ColorDefault, termbox.ColorDefault)
+// 	}
+// }
 
-func editorView(m model) string {
-	return fmt.Sprintf(
-		"Username: %s\n\n%s\n\n%s",
-		m.textInput.Value(),
-		m.textarea.View(),
-		"(ctrl+c to quit)",
-	) + "\n\n"
-}
+// func (e *Editor) MoveCursor(x, y int) {
+// 	c := e.calcCursor()
 
-func (m model) View() string {
-	var s string
-	if m.Quitting {
-		return "\n  See you later!\n\n"
-	}
-	if !m.LoggedIn {
-		s = loginView(m)
-	} else {
-		s = editorView(m)
-	}
-	return s
-}
+// 	if x > 0 {
+// 		if c+x <= len(e.text) {
+// 			e.x, e.y = e.calcCursorXY(c + x)
+// 		}
+// 	} else {
+// 		if 0 <= c+x {
+// 			if e.text[c+x] == rune('\n') {
+// 				e.x, e.y = e.calcCursorXY(c + x - 1)
+// 			} else {
+// 				e.x, e.y = e.calcCursorXY(c + x)
+// 			}
+// 		}
+// 	}
+// }
+
+// // CalcCursor calc index of []rune from e.x and e.y.
+// func (e *Editor) calcCursor() int {
+// 	ri := 0
+// 	y := 1
+// 	x := 0
+
+// 	for y < e.y {
+// 		for _, r := range e.text {
+// 			ri++
+// 			if r == '\n' {
+// 				y++
+// 				break
+// 			}
+// 		}
+// 	}
+
+// 	for _, r := range e.text[ri:] {
+// 		if x >= e.x-runewidth.RuneWidth(r) {
+// 			break
+// 		}
+// 		x += runewidth.RuneWidth(r)
+// 		ri++
+// 	}
+
+// 	return ri
+// }
+
+// // calcCursorXY calc x and y from index of []rume
+// func (e *Editor) calcCursorXY(index int) (int, int) {
+// 	x := 1
+// 	y := 1
+// 	for i := 0; i < index; i++ {
+// 		if e.text[i] == rune('\n') {
+// 			x = 1
+// 			y++
+// 		} else {
+// 			x = x + runewidth.RuneWidth(e.text[i])
+// 		}
+// 	}
+// 	return x, y
+// }
+
+// func UI(conn *websocket.Conn, d *crdt.Document) error {
+// 	err := termbox.Init()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer termbox.Close()
+
+// 	e := NewEditor()
+// 	e.SetSize(termbox.Size())
+// 	e.Draw()
+
+// 	mainLoop(e, conn, d)
+// 	return nil
+// }
+
+// func mainLoop(e *Editor, conn *websocket.Conn, doc *crdt.Document) {
+// 	for {
+// 		switch ev := termbox.PollEvent(); ev.Type {
+// 		case termbox.EventKey:
+// 			switch ev.Key {
+// 			case termbox.KeyEsc, termbox.KeyCtrlC:
+// 				return
+// 			case termbox.KeyArrowLeft, termbox.KeyCtrlB:
+// 				e.MoveCursor(-1, 0)
+// 				e.Draw()
+// 			case termbox.KeyArrowRight, termbox.KeyCtrlF:
+// 				e.MoveCursor(1, 0)
+// 				e.Draw()
+// 			case termbox.KeyBackspace, termbox.KeyBackspace2:
+// 			case termbox.KeyDelete, termbox.KeyCtrlD:
+// 			case termbox.KeyTab:
+// 			case termbox.KeySpace:
+// 			case termbox.KeyCtrlK:
+// 			case termbox.KeyHome, termbox.KeyCtrlA:
+// 			case termbox.KeyEnd, termbox.KeyCtrlE:
+// 			case termbox.KeyEnter:
+// 				e.AddRune(rune('\n'))
+
+// 				pos := e.GetX()
+// 				ch := string(ev.Ch)
+// 				text, _ := doc.Insert(pos, ch)
+// 				e.SetText(text)
+// 				msg := message{Type: "operation", Operation: Operation{Position: pos, Value: ch}}
+// 				conn.WriteJSON(msg)
+
+// 				e.Draw()
+// 			default:
+// 				if ev.Ch != 0 {
+// 					e.AddRune(ev.Ch)
+
+// 					pos := e.GetX()
+// 					ch := string(ev.Ch)
+// 					text, _ := doc.Insert(pos, ch)
+// 					e.SetText(text)
+// 					msg := message{Type: "operation", Operation: Operation{Position: pos, Value: ch}}
+// 					conn.WriteJSON(msg)
+
+// 					e.Draw()
+// 				}
+// 			}
+// 		case termbox.EventResize:
+// 			e.SetSize(termbox.Size())
+// 		}
+// 	}
+// }

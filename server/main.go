@@ -12,10 +12,16 @@ import (
 )
 
 type message struct {
-	Username string `json:"username"`
-	Text     string `json:"text"`
-	Type     string `json:"type"`
-	ID       uuid.UUID
+	Username  string `json:"username"`
+	Text      string `json:"text"`
+	Type      string `json:"type"`
+	ID        uuid.UUID
+	Operation Operation `json:"operation"`
+}
+
+type Operation struct {
+	Position int    `json:"position"`
+	Value    string `json:"value"`
 }
 
 // Upgrader instance to upgrade all HTTP connections to a WebSocket.
@@ -27,6 +33,8 @@ var activeClients = make(map[*websocket.Conn]uuid.UUID)
 // Channel for client messages.
 var messageChan = make(chan message)
 
+var done = make(chan bool)
+
 func main() {
 	// Parse flags.
 	addr := flag.String("addr", ":9000", "Server's network address")
@@ -35,8 +43,21 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleConn)
 
+	// ticker := time.NewTicker(2 * time.Second)
+
 	// Handle incoming messages.
 	go handleMsg()
+
+	// handler -> read from connection (wait) -> construct message -> send it to channel (handler's part)
+	// receive message from channel (wait) -> log -> broadcast (goroutine's part)
+
+	// ["a", <timestamp>], ["b", <timestamp>]
+	// =>
+	// pull from queue => broadcast
+	// in order to reduce chances of blocking calls/starvation,
+	// set a cap/limit to have at least X messages in the buffer (X=1)
+
+	// go handleMsg(ticker)
 
 	// Start the server.
 	log.Printf("Starting server on %s", *addr)
@@ -44,6 +65,9 @@ func main() {
 	if err != nil {
 		log.Fatal("Error starting server, exiting.", err)
 	}
+
+	// ticker.Stop()
+	// done <- true
 }
 
 // handleConn handles incoming HTTP connections by adding the connection to activeClients and reads messages from the connection.
@@ -51,7 +75,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	// Upgrade incoming HTTP connections to WebSocket connections
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Error upgrading connection to websocket: %v", err)
+		color.Red("Error upgrading connection to websocket: %v\n", err)
 	}
 	defer conn.Close()
 
@@ -64,7 +88,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		// Read message from the connection.
 		err := conn.ReadJSON(&msg)
 		if err != nil {
-			log.Printf("Closing connection with ID: %v", activeClients[conn])
+			color.Red("Closing connection with ID: %v\n", activeClients[conn])
 			delete(activeClients, conn)
 			break
 		}
@@ -79,26 +103,52 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 
 // handleMsg listens to the messageChan channel and broadcasts messages to other clients.
 func handleMsg() {
+	// func handleMsg(ticker *time.Ticker) {
 	for {
 		// Get message from messageChan.
 		msg := <-messageChan
 
+		// intermediate store?
+
 		// Log each message to stdout.
 		t := time.Now().Format(time.ANSIC)
-		if msg.Type != "" {
-			color.Green("%s >> %s %s\n", t, msg.Username, msg.Text)
+		if msg.Type == "info" {
+			color.Green("%s >> %s %s (ID: %s)\n", t, msg.Username, msg.Text, msg.ID)
+		} else if msg.Type == "operation" {
+			color.Green("operation >> %+v from ID=%s\n", msg.Operation, msg.ID)
 		} else {
 			color.Green("%s >> %s: %s\n", t, msg.Username, msg.Text)
 		}
 
+		// tickers? (don't wait, "tick" at every interval)
+		// stock price?
+		// broadcasting!
+		// CRDTs can handle duplication?
+		// sync?
+
+		// ticker value = 5s
+		// a -> 10s gap -> b
+		// a -> ? -> ? -> b
+
+		// for range ticker.C {
+		// select {
+		// case <-done:
+		// 	return
+		// case <-ticker.C:
 		// Broadcast to all active clients.
 		for client, UUID := range activeClients {
+
+			// for client := range activeClients {
+			// color.Yellow("clients: %+v\n", activeClients)
+			// color.Yellow("current client: %+v\n", client.UnderlyingConn())
+
 			// Check the UUID to prevent sending messages to their origin.
 			if msg.ID != UUID {
 				// Write JSON message.
+				color.Magenta("writing message to: %s\n", msg.ID)
 				err := client.WriteJSON(msg)
 				if err != nil {
-					log.Printf("Error sending message to client: %v", err)
+					color.Red("Error sending message to client: %v\n", err)
 					client.Close()
 					delete(activeClients, client)
 				}

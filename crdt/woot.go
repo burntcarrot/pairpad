@@ -99,6 +99,22 @@ func (doc *Document) Position(charID string) int {
 	return -1
 }
 
+func (doc *Document) Left(charID string) string {
+	i := doc.Position(charID)
+	if i <= 0 {
+		return doc.Characters[i].ID
+	}
+	return doc.Characters[i-1].ID
+}
+
+func (doc *Document) Right(charID string) string {
+	i := doc.Position(charID)
+	if i >= len(doc.Characters)-1 {
+		return doc.Characters[i-1].ID
+	}
+	return doc.Characters[i+1].ID
+}
+
 // Contains checks if a character is present in the document.
 func (doc *Document) Contains(charID string) bool {
 	position := doc.Position(charID)
