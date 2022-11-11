@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/burntcarrot/rowix/crdt"
 	"github.com/gorilla/websocket"
@@ -97,7 +98,7 @@ func main() {
 	err = UI(conn, &doc)
 	if err != nil {
 		fmt.Printf("TUI error, exiting: %s", err)
-		fmt.Printf("\ndocument: %+v\n\n", doc)
+		//	fmt.Printf("\ndocument: %+v\n\n", doc)
 		os.Exit(0)
 	}
 }
@@ -340,6 +341,7 @@ func UI(conn *websocket.Conn, d *crdt.Document) error {
 }
 
 func mainLoop(e *Editor, conn *websocket.Conn, doc *crdt.Document) error {
+	go repeatDraw(e, doc)
 	for {
 		switch ev := termbox.PollEvent(); ev.Type {
 		case termbox.EventKey:
@@ -389,4 +391,13 @@ func mainLoop(e *Editor, conn *websocket.Conn, doc *crdt.Document) error {
 			e.SetSize(termbox.Size())
 		}
 	}
+}
+
+func repeatDraw(e *Editor, doc *crdt.Document) {
+	for {
+		time.Sleep(100 * time.Millisecond)
+		e.SetText(crdt.Content(*doc))
+		e.Draw()
+	}
+
 }
