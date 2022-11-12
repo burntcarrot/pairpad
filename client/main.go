@@ -12,7 +12,6 @@ import (
 
 	"github.com/burntcarrot/rowix/crdt"
 	"github.com/gorilla/websocket"
-	"github.com/mattn/go-runewidth"
 	"github.com/nsf/termbox-go"
 )
 
@@ -44,7 +43,12 @@ type Operation struct {
 
 // Local document containing content.
 var doc crdt.Document
+
+// Centralized logger.
 var logger *log.Logger
+
+// termbox-based editor.
+var e *Editor
 
 func main() {
 	var name string
@@ -66,7 +70,6 @@ func main() {
 
 	// Initialize document.
 	doc = crdt.New()
-	// doc.Insert(1, "a")
 
 	// Get WebSocket connection.
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -90,23 +93,18 @@ func main() {
 
 	logger = log.New(file, "operations:", log.LstdFlags)
 
-	// err = tui.UI(conn, &doc)
-
 	go readMessages(conn, &doc) // Handle incoming messages concurrently.
 	// writeMessages(conn, s, name) // Handle outgoing messages concurrently.
 
 	err = UI(conn, &doc)
 	if err != nil {
 		fmt.Printf("TUI error, exiting: %s", err)
-		//	fmt.Printf("\ndocument: %+v\n\n", doc)
 		os.Exit(0)
 	}
 }
 
 // readMessages handles incoming messages on the WebSocket connection.
 func readMessages(conn ConnReader, doc *crdt.Document) {
-	// logger.Println("read message goroutine is called!")
-	fmt.Println("read message goroutine is called!")
 	for {
 		var msg message
 
@@ -125,9 +123,6 @@ func readMessages(conn ConnReader, doc *crdt.Document) {
 			text, _ := doc.Insert(msg.Operation.Position, msg.Operation.Value)
 			e.SetText(text)
 		}
-
-		// Display message.
-		// fmt.Printf("%s: %s\n", msg.Username, msg.Text)
 	}
 }
 
@@ -166,161 +161,7 @@ func writeMessages(conn ConnWriter, s Scanner, name string) {
 	}
 }
 
-type Editor struct {
-	text   []rune
-	x      int
-	y      int
-	width  int
-	height int
-}
-
-func NewEditor() *Editor {
-	return &Editor{
-		x: 1,
-		y: 1,
-	}
-}
-
-func (e *Editor) GetText() []rune {
-	return e.text
-}
-
-func (e *Editor) SetText(text string) {
-	e.text = []rune(text)
-}
-
-func (e *Editor) GetX() int {
-	return e.x
-}
-
-func (e *Editor) GetY() int {
-	return e.y
-}
-
-func (e *Editor) GetWidth() int {
-	return e.width
-}
-
-func (e *Editor) GetHeight() int {
-	return e.height
-}
-
-func (e *Editor) SetSize(w, h int) {
-	e.width = w
-	e.height = h
-}
-
-func (e *Editor) AddRune(r rune) {
-	cursor := e.calcCursor()
-	if cursor == 0 {
-		e.text = append([]rune{r}, e.text...)
-	} else if cursor < len(e.text) {
-		e.text = append(e.text[:cursor], e.text[cursor-1:]...)
-		e.text[cursor] = r
-	} else {
-		e.text = append(e.text[:cursor], r)
-	}
-	if r == rune('\n') {
-		e.x = 1
-		e.y += 1
-	} else {
-		e.x += runewidth.RuneWidth(r)
-	}
-}
-
-func (e *Editor) DeletePrevRune() {
-}
-
-func (e *Editor) Draw() {
-	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-	termbox.SetCursor(e.x-1, e.y-1)
-	x := 0
-	y := 0
-	for i := 0; i < len(e.text); i++ {
-		if e.text[i] == rune('\n') {
-			x = 0
-			y++
-		} else {
-			if x < e.width {
-				termbox.SetCell(x, y, e.text[i], termbox.ColorDefault, termbox.ColorDefault)
-			}
-			x = x + runewidth.RuneWidth(e.text[i])
-		}
-	}
-	e.debugDraw()
-	termbox.Flush()
-}
-
-func (e *Editor) debugDraw() {
-	x, y := e.calcCursorXY(e.calcCursor())
-	str := fmt.Sprintf("x=%d, y=%d, cursor=%d, len(text)=%d, x,y=%d,%d", e.x, e.y, e.calcCursor(), len(e.text), x, y)
-	for i, r := range []rune(str) {
-		termbox.SetCell(i, e.height-1, r, termbox.ColorDefault, termbox.ColorDefault)
-	}
-}
-
-func (e *Editor) MoveCursor(x, y int) {
-	c := e.calcCursor()
-
-	if x > 0 {
-		if c+x <= len(e.text) {
-			e.x, e.y = e.calcCursorXY(c + x)
-		}
-	} else {
-		if 0 <= c+x {
-			if e.text[c+x] == rune('\n') {
-				e.x, e.y = e.calcCursorXY(c + x - 1)
-			} else {
-				e.x, e.y = e.calcCursorXY(c + x)
-			}
-		}
-	}
-}
-
-// CalcCursor calc index of []rune from e.x and e.y.
-func (e *Editor) calcCursor() int {
-	ri := 0
-	y := 1
-	x := 0
-
-	for y < e.y {
-		for _, r := range e.text {
-			ri++
-			if r == '\n' {
-				y++
-				break
-			}
-		}
-	}
-
-	for _, r := range e.text[ri:] {
-		if x >= e.x-runewidth.RuneWidth(r) {
-			break
-		}
-		x += runewidth.RuneWidth(r)
-		ri++
-	}
-
-	return ri
-}
-
-// calcCursorXY calc x and y from index of []rume
-func (e *Editor) calcCursorXY(index int) (int, int) {
-	x := 1
-	y := 1
-	for i := 0; i < index; i++ {
-		if e.text[i] == rune('\n') {
-			x = 1
-			y++
-		} else {
-			x = x + runewidth.RuneWidth(e.text[i])
-		}
-	}
-	return x, y
-}
-
-var e *Editor
-
+// UI creates a new editor view and runs the main loop.
 func UI(conn *websocket.Conn, d *crdt.Document) error {
 	err := termbox.Init()
 	if err != nil {
@@ -340,9 +181,20 @@ func UI(conn *websocket.Conn, d *crdt.Document) error {
 	return nil
 }
 
+// mainLoop is the main update loop for the UI.
 func mainLoop(e *Editor, conn *websocket.Conn, doc *crdt.Document) error {
+
+	// Backstory:
+	// termbox.PollEvent() is a blocking call and waits for keyboard events, hence updating the local content at a client requires the client to do an "empty" keypress.
+	// This empty keypress can be done using the arrow keys, or any other keys.
+	// Once the keypress happens, the local state gets updated.
+
+	// To mitigate this problem, the repeatDraw goroutine is spawned here.
+	// repeatDraw sets the editor's content to the local CRDT document's state.
 	go repeatDraw(e, doc)
+
 	for {
+		// Wait for keyboard event
 		switch ev := termbox.PollEvent(); ev.Type {
 		case termbox.EventKey:
 			switch ev.Key {
@@ -354,33 +206,34 @@ func mainLoop(e *Editor, conn *websocket.Conn, doc *crdt.Document) error {
 			case termbox.KeyArrowRight, termbox.KeyCtrlF:
 				e.MoveCursor(1, 0)
 				e.Draw()
-			case termbox.KeyBackspace, termbox.KeyBackspace2:
-			case termbox.KeyDelete, termbox.KeyCtrlD:
-			case termbox.KeyTab:
-			case termbox.KeySpace:
-			case termbox.KeyCtrlK:
-			case termbox.KeyHome, termbox.KeyCtrlA:
-			case termbox.KeyEnd, termbox.KeyCtrlE:
+			case termbox.KeyBackspace, termbox.KeyBackspace2: // TODO: support deletion
+			case termbox.KeyDelete: // TODO: support deletes
+			case termbox.KeyTab: // TODO: add tabs?
 			case termbox.KeyEnter:
-				e.AddRune(rune('\n'))
-
+				// Get position and value.
 				pos := e.GetX()
 				ch := string(ev.Ch)
+
+				// Modify local state (CRDT) first.
 				text, _ := doc.Insert(pos, ch)
 				e.SetText(text)
+
+				// Send payload to WebSocket connection.
 				msg := message{Type: "operation", Operation: Operation{Position: pos, Value: ch}}
 				conn.WriteJSON(msg)
 
 				e.Draw()
 			default:
 				if ev.Ch != 0 {
-					// e.AddRune(ev.Ch)
-
+					// Get position and value.
 					pos := e.GetX()
 					ch := string(ev.Ch)
-					// _, _ = doc.Insert(pos, ch)
+
+					// Modify local state (CRDT) first.
 					text, _ := doc.Insert(pos, ch)
 					e.SetText(text)
+
+					// Send payload to WebSocket connection.
 					msg := message{Type: "operation", Operation: Operation{Position: pos, Value: ch}}
 					conn.WriteJSON(msg)
 
@@ -388,16 +241,18 @@ func mainLoop(e *Editor, conn *websocket.Conn, doc *crdt.Document) error {
 				}
 			}
 		case termbox.EventResize:
+			// Change editor size on resize event.
 			e.SetSize(termbox.Size())
 		}
 	}
 }
 
+// repeatDraw updates/syncs the editor state with the document state.
 func repeatDraw(e *Editor, doc *crdt.Document) {
 	for {
+		// Current sync interval is 100ms.
 		time.Sleep(100 * time.Millisecond)
 		e.SetText(crdt.Content(*doc))
 		e.Draw()
 	}
-
 }
