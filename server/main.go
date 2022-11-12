@@ -103,7 +103,6 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 
 // handleMsg listens to the messageChan channel and broadcasts messages to other clients.
 func handleMsg() {
-	// func handleMsg(ticker *time.Ticker) {
 	for {
 		// Get message from messageChan.
 		msg := <-messageChan
@@ -123,25 +122,14 @@ func handleMsg() {
 		// tickers? (don't wait, "tick" at every interval)
 		// stock price?
 		// broadcasting!
-		// CRDTs can handle duplication?
 		// sync?
 
 		// ticker value = 5s
 		// a -> 10s gap -> b
 		// a -> ? -> ? -> b
 
-		// for range ticker.C {
-		// select {
-		// case <-done:
-		// 	return
-		// case <-ticker.C:
 		// Broadcast to all active clients.
 		for client, UUID := range activeClients {
-
-			// for client := range activeClients {
-			// color.Yellow("clients: %+v\n", activeClients)
-			// color.Yellow("current client: %+v\n", client.UnderlyingConn())
-
 			// Check the UUID to prevent sending messages to their origin.
 			if msg.ID != UUID {
 				// Write JSON message.
