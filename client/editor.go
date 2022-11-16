@@ -72,7 +72,7 @@ func (e *Editor) AddRune(r rune) {
 
 // Draw updates the UI by setting cells with the editor's content.
 func (e *Editor) Draw() {
-	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
+	_ = termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	termbox.SetCursor(e.x-1, e.y-1)
 	x := 0
 	y := 0

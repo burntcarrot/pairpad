@@ -33,8 +33,6 @@ var activeClients = make(map[*websocket.Conn]uuid.UUID)
 // Channel for client messages.
 var messageChan = make(chan message)
 
-var done = make(chan bool)
-
 func main() {
 	// Parse flags.
 	addr := flag.String("addr", ":9000", "Server's network address")
@@ -43,21 +41,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleConn)
 
-	// ticker := time.NewTicker(2 * time.Second)
-
 	// Handle incoming messages.
 	go handleMsg()
-
-	// handler -> read from connection (wait) -> construct message -> send it to channel (handler's part)
-	// receive message from channel (wait) -> log -> broadcast (goroutine's part)
-
-	// ["a", <timestamp>], ["b", <timestamp>]
-	// =>
-	// pull from queue => broadcast
-	// in order to reduce chances of blocking calls/starvation,
-	// set a cap/limit to have at least X messages in the buffer (X=1)
-
-	// go handleMsg(ticker)
 
 	// Start the server.
 	log.Printf("Starting server on %s", *addr)
@@ -65,9 +50,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Error starting server, exiting.", err)
 	}
-
-	// ticker.Stop()
-	// done <- true
 }
 
 // handleConn handles incoming HTTP connections by adding the connection to activeClients and reads messages from the connection.
@@ -107,8 +89,6 @@ func handleMsg() {
 		// Get message from messageChan.
 		msg := <-messageChan
 
-		// intermediate store?
-
 		// Log each message to stdout.
 		t := time.Now().Format(time.ANSIC)
 		if msg.Type == "info" {
@@ -118,15 +98,6 @@ func handleMsg() {
 		} else {
 			color.Green("%s >> %s: %s\n", t, msg.Username, msg.Text)
 		}
-
-		// tickers? (don't wait, "tick" at every interval)
-		// stock price?
-		// broadcasting!
-		// sync?
-
-		// ticker value = 5s
-		// a -> 10s gap -> b
-		// a -> ? -> ? -> b
 
 		// Broadcast to all active clients.
 		for client, UUID := range activeClients {

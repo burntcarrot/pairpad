@@ -14,20 +14,6 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-type ConnReader interface {
-	ReadJSON(v interface{}) error
-}
-
-type ConnWriter interface {
-	WriteJSON(v interface{}) error
-	Close() error
-}
-
-type Scanner interface {
-	Scan() bool
-	Text() string
-}
-
 type message struct {
 	Username  string    `json:"username"`
 	Text      string    `json:"text"`
@@ -132,18 +118,14 @@ func mainLoop(e *Editor, conn *websocket.Conn, doc *crdt.Document) error {
 			if err != nil {
 				return err
 			}
-			e.SetText(crdt.Content(*doc))
-			e.Draw()
+
 		case msg := <-msgChan:
 			handleMsg(msg, doc)
-			e.SetText(crdt.Content(*doc))
-			e.Draw()
 		}
 	}
 }
 
-// handleTermboxEvent handles key input by updating the local CRDT document and sending
-// a message over the websocket connection.
+// handleTermboxEvent handles key input by updating the local CRDT document and sending a message over the WebSocket connection.
 func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 	switch ev.Type {
 	case termbox.EventKey:
@@ -170,7 +152,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 
 			// Send payload to WebSocket connection.
 			msg := message{Type: "operation", Operation: Operation{Position: pos, Value: ch}}
-			conn.WriteJSON(msg)
+			_ = conn.WriteJSON(msg)
 
 			e.Draw()
 		default:
@@ -185,7 +167,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 
 				// Send payload to WebSocket connection.
 				msg := message{Type: "operation", Operation: Operation{Position: pos, Value: ch}}
-				conn.WriteJSON(msg)
+				_ = conn.WriteJSON(msg)
 
 				e.Draw()
 			}
@@ -208,6 +190,8 @@ func getTermboxChan() chan termbox.Event {
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document) {
 	_, _ = doc.Insert(msg.Operation.Position, msg.Operation.Value)
+	e.SetText(crdt.Content(*doc))
+	e.Draw()
 }
 
 // getMsgChan returns a message channel that repeatedly reads from a websocket connection.
@@ -230,11 +214,6 @@ func getMsgChan(conn *websocket.Conn) chan message {
 
 			// send message through channel
 			messageChan <- msg
-			// if msg.Type == "operation" {
-			// 	logger.Printf("operation received: %+v\n", msg)
-			// 	text, _ := doc.Insert(msg.Operation.Position, msg.Operation.Value)
-			// 	e.SetText(text)
-			// }
 
 		}
 	}()
