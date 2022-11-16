@@ -131,9 +131,9 @@ func handleMsg() {
 		// Broadcast to all active clients.
 		for client, UUID := range activeClients {
 			// Check the UUID to prevent sending messages to their origin.
-			if msg.ID != UUID {
+			if UUID != msg.ID {
 				// Write JSON message.
-				color.Magenta("writing message to: %s\n", msg.ID)
+				color.Magenta("writing message to: %s\n", UUID)
 				err := client.WriteJSON(msg)
 				if err != nil {
 					color.Red("Error sending message to client: %v\n", err)
