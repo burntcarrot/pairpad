@@ -6,9 +6,11 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY *.go ./
+COPY ./ ./
 
-RUN go build -o rowix-server server/main.go
+RUN apk add --no-cache bash
+
+RUN go build -o /rowix-server ./server/main.go
 
 EXPOSE 9000
 
