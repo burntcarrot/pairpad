@@ -40,12 +40,12 @@ func main() {
 	var s *bufio.Scanner
 
 	// Parse flags.
-	server := flag.String("server", "localhost:9000", "Server network address")
+	server := flag.String("server", "localhost:8080", "Server network address")
 	path := flag.String("path", "/", "Server path")
 	flag.Parse()
 
 	// Construct WebSocket URL.
-	u := url.URL{Scheme: "ws", Host: *server, Path: *path}
+	u := url.URL{Scheme: "wss", Host: *server, Path: *path}
 
 	// Read username.
 	fmt.Print("Enter your name: ")
@@ -65,7 +65,7 @@ func main() {
 	defer conn.Close()
 
 	// Send joining message.
-	msg := message{Username: name, Text: "has joined the chat.", Type: "info"}
+	msg := message{Username: name, Text: "has joined the session.", Type: "info"}
 	_ = conn.WriteJSON(msg)
 
 	// open logging file  and create if non-existent
@@ -204,10 +204,10 @@ func getMsgChan(conn *websocket.Conn) chan message {
 			// Read message.
 			err := conn.ReadJSON(&msg)
 			if err != nil {
-				fmt.Printf("Server closed. Exiting...")
-				fmt.Printf("connection error!: %s\n", err)
-				// TODO: error handling?
-				os.Exit(0)
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Printf("websocket error: %v", err)
+				}
+				break
 			}
 
 			logger.Printf("message received: %+v\n", msg)
