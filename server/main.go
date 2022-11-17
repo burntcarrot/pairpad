@@ -12,10 +12,16 @@ import (
 )
 
 type message struct {
-	Username string `json:"username"`
-	Text     string `json:"text"`
-	Type     string `json:"type"`
-	ID       uuid.UUID
+	Username  string `json:"username"`
+	Text      string `json:"text"`
+	Type      string `json:"type"`
+	ID        uuid.UUID
+	Operation Operation `json:"operation"`
+}
+
+type Operation struct {
+	Position int    `json:"position"`
+	Value    string `json:"value"`
 }
 
 // Upgrader instance to upgrade all HTTP connections to a WebSocket.
@@ -29,7 +35,7 @@ var messageChan = make(chan message)
 
 func main() {
 	// Parse flags.
-	addr := flag.String("addr", ":9000", "Server's network address")
+	addr := flag.String("addr", ":8080", "Server's network address")
 	flag.Parse()
 
 	mux := http.NewServeMux()
@@ -51,7 +57,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	// Upgrade incoming HTTP connections to WebSocket connections
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Error upgrading connection to websocket: %v", err)
+		color.Red("Error upgrading connection to websocket: %v\n", err)
 	}
 	defer conn.Close()
 
@@ -64,7 +70,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		// Read message from the connection.
 		err := conn.ReadJSON(&msg)
 		if err != nil {
-			log.Printf("Closing connection with ID: %v", activeClients[conn])
+			color.Red("Closing connection with ID: %v\n", activeClients[conn])
 			delete(activeClients, conn)
 			break
 		}
@@ -85,8 +91,10 @@ func handleMsg() {
 
 		// Log each message to stdout.
 		t := time.Now().Format(time.ANSIC)
-		if msg.Type != "" {
-			color.Green("%s >> %s %s\n", t, msg.Username, msg.Text)
+		if msg.Type == "info" {
+			color.Green("%s >> %s %s (ID: %s)\n", t, msg.Username, msg.Text, msg.ID)
+		} else if msg.Type == "operation" {
+			color.Green("operation >> %+v from ID=%s\n", msg.Operation, msg.ID)
 		} else {
 			color.Green("%s >> %s: %s\n", t, msg.Username, msg.Text)
 		}
@@ -94,11 +102,12 @@ func handleMsg() {
 		// Broadcast to all active clients.
 		for client, UUID := range activeClients {
 			// Check the UUID to prevent sending messages to their origin.
-			if msg.ID != UUID {
+			if UUID != msg.ID {
 				// Write JSON message.
+				color.Magenta("writing message to: %s\n", UUID)
 				err := client.WriteJSON(msg)
 				if err != nil {
-					log.Printf("Error sending message to client: %v", err)
+					color.Red("Error sending message to client: %v\n", err)
 					client.Close()
 					delete(activeClients, client)
 				}
