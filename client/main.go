@@ -22,6 +22,7 @@ type message struct {
 }
 
 type Operation struct {
+	Type     string `json:"type"`
 	Position int    `json:"position"`
 	Value    string `json:"value"`
 }
@@ -42,10 +43,16 @@ func main() {
 	// Parse flags.
 	server := flag.String("server", "localhost:8080", "Server network address")
 	path := flag.String("path", "/", "Server path")
+	secure := flag.Bool("wss", false, "Use wss by default")
 	flag.Parse()
 
 	// Construct WebSocket URL.
-	u := url.URL{Scheme: "wss", Host: *server, Path: *path}
+	var u url.URL
+	if *secure {
+		u = url.URL{Scheme: "wss", Host: *server, Path: *path}
+	} else {
+		u = url.URL{Scheme: "ws", Host: *server, Path: *path}
+	}
 
 	// Read username.
 	fmt.Print("Enter your name: ")
@@ -138,42 +145,68 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:
 			e.MoveCursor(1, 0)
 			e.Draw()
-		case termbox.KeyBackspace, termbox.KeyBackspace2: // TODO: support deletion
-		case termbox.KeyDelete: // TODO: support deletes
+		case termbox.KeyHome:
+			e.SetX(1)
+			e.Draw()
+		case termbox.KeyEnd:
+			e.SetX(len(e.text) + 1)
+			e.Draw()
+		case termbox.KeyBackspace, termbox.KeyBackspace2:
+			performOperation(OperationDelete, ev, conn)
+		case termbox.KeyDelete:
+			performOperation(OperationDelete, ev, conn)
 		case termbox.KeyTab: // TODO: add tabs?
 		case termbox.KeyEnter:
-			// Get position and value.
-			pos := e.GetX()
-			ch := string(ev.Ch)
-
-			// Modify local state (CRDT) first.
-			text, _ := doc.Insert(pos, ch)
-			e.SetText(text)
-
-			// Send payload to WebSocket connection.
-			msg := message{Type: "operation", Operation: Operation{Position: pos, Value: ch}}
-			_ = conn.WriteJSON(msg)
-
-			e.Draw()
+			logger.Println("enter value:", ev.Ch)
+			performOperation(OperationInsert, ev, conn)
 		default:
 			if ev.Ch != 0 {
-				// Get position and value.
-				pos := e.GetX()
-				ch := string(ev.Ch)
-
-				// Modify local state (CRDT) first.
-				text, _ := doc.Insert(pos, ch)
-				e.SetText(text)
-
-				// Send payload to WebSocket connection.
-				msg := message{Type: "operation", Operation: Operation{Position: pos, Value: ch}}
-				_ = conn.WriteJSON(msg)
-
-				e.Draw()
+				performOperation(OperationInsert, ev, conn)
 			}
 		}
 	}
 	return nil
+}
+
+const (
+	OperationInsert = iota
+	OperationDelete
+)
+
+func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
+	// Get position and value.
+	pos := e.GetX()
+	ch := string(ev.Ch)
+
+	var msg message
+
+	// Modify local state (CRDT) first.
+	switch opType {
+	case OperationInsert:
+		if ev.Ch != 0 {
+			r := []rune(ch)
+			e.AddRune(r[0])
+		} else {
+			e.AddRune(rune('\n'))
+			ch = "\n"
+		}
+
+		text, _ := doc.Insert(pos, ch)
+		e.SetText(text)
+		// logger.Println(crdt.Content(doc))
+		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: pos, Value: ch}}
+	case OperationDelete:
+		if pos-1 <= 0 {
+			pos = 1
+		}
+		e.MoveCursor(-1, 0)
+		text := doc.Delete(pos - 1)
+		e.SetText(text)
+		msg = message{Type: "operation", Operation: Operation{Type: "delete", Position: pos - 1}}
+	}
+
+	_ = conn.WriteJSON(msg)
+	e.Draw()
 }
 
 // getTermboxChan returns a channel of termbox Events repeatedly waiting on user input.
@@ -189,7 +222,13 @@ func getTermboxChan() chan termbox.Event {
 
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document) {
-	_, _ = doc.Insert(msg.Operation.Position, msg.Operation.Value)
+	switch msg.Operation.Type {
+	case "insert":
+		_, _ = doc.Insert(msg.Operation.Position, msg.Operation.Value)
+	case "delete":
+		_ = doc.Delete(msg.Operation.Position)
+	}
+
 	e.SetText(crdt.Content(*doc))
 	e.Draw()
 }

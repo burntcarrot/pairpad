@@ -34,6 +34,10 @@ func (e *Editor) GetX() int {
 	return e.x
 }
 
+func (e *Editor) SetX(x int) {
+	e.x = x
+}
+
 func (e *Editor) GetY() int {
 	return e.y
 }
