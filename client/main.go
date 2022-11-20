@@ -158,6 +158,11 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		case termbox.KeyTab: // TODO: add tabs?
 		case termbox.KeyEnter:
 			logger.Println("enter value:", ev.Ch)
+			ev.Ch = '\n'
+			performOperation(OperationInsert, ev, conn)
+		case termbox.KeySpace:
+			logger.Println("space value:", ev.Ch)
+			ev.Ch = ' '
 			performOperation(OperationInsert, ev, conn)
 		default:
 			if ev.Ch != 0 {
@@ -183,13 +188,8 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Modify local state (CRDT) first.
 	switch opType {
 	case OperationInsert:
-		if ev.Ch != 0 {
-			r := []rune(ch)
-			e.AddRune(r[0])
-		} else {
-			e.AddRune(rune('\n'))
-			ch = "\n"
-		}
+		r := []rune(ch)
+		e.AddRune(r[0])
 
 		text, _ := doc.Insert(pos, ch)
 		e.SetText(text)
