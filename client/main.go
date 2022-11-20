@@ -180,7 +180,6 @@ const (
 
 func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Get position and value.
-	pos := e.GetX()
 	ch := string(ev.Ch)
 
 	var msg message
@@ -191,18 +190,18 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 		r := []rune(ch)
 		e.AddRune(r[0])
 
-		text, _ := doc.Insert(pos, ch)
+		text, _ := doc.Insert(e.cursor, ch)
 		e.SetText(text)
 		// logger.Println(crdt.Content(doc))
-		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: pos, Value: ch}}
+		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: e.cursor, Value: ch}}
 	case OperationDelete:
-		if pos-1 <= 0 {
-			pos = 1
+		if e.cursor-1 <= 0 {
+			e.cursor = 1
 		}
-		e.MoveCursor(-1, 0)
-		text := doc.Delete(pos - 1)
+		text := doc.Delete(e.cursor)
 		e.SetText(text)
-		msg = message{Type: "operation", Operation: Operation{Type: "delete", Position: pos - 1}}
+		msg = message{Type: "operation", Operation: Operation{Type: "delete", Position: e.cursor}}
+		e.MoveCursor(-1, 0)
 	}
 
 	_ = conn.WriteJSON(msg)
