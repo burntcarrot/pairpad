@@ -146,10 +146,10 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			e.MoveCursor(1, 0)
 			e.Draw()
 		case termbox.KeyHome:
-			e.SetX(1)
+			e.SetX(0)
 			e.Draw()
 		case termbox.KeyEnd:
-			e.SetX(len(e.text) + 1)
+			e.SetX(len(e.text))
 			e.Draw()
 		case termbox.KeyBackspace, termbox.KeyBackspace2:
 			performOperation(OperationDelete, ev, conn)
@@ -158,6 +158,11 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		case termbox.KeyTab: // TODO: add tabs?
 		case termbox.KeyEnter:
 			logger.Println("enter value:", ev.Ch)
+			ev.Ch = '\n'
+			performOperation(OperationInsert, ev, conn)
+		case termbox.KeySpace:
+			logger.Println("space value:", ev.Ch)
+			ev.Ch = ' '
 			performOperation(OperationInsert, ev, conn)
 		default:
 			if ev.Ch != 0 {
@@ -175,7 +180,6 @@ const (
 
 func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Get position and value.
-	pos := e.GetX()
 	ch := string(ev.Ch)
 
 	var msg message
@@ -183,26 +187,21 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Modify local state (CRDT) first.
 	switch opType {
 	case OperationInsert:
-		if ev.Ch != 0 {
-			r := []rune(ch)
-			e.AddRune(r[0])
-		} else {
-			e.AddRune(rune('\n'))
-			ch = "\n"
-		}
+		r := []rune(ch)
+		e.AddRune(r[0])
 
-		text, _ := doc.Insert(pos, ch)
+		text, _ := doc.Insert(e.cursor, ch)
 		e.SetText(text)
 		// logger.Println(crdt.Content(doc))
-		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: pos, Value: ch}}
+		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: e.cursor, Value: ch}}
 	case OperationDelete:
-		if pos-1 <= 0 {
-			pos = 1
+		if e.cursor-1 <= 0 {
+			e.cursor = 1
 		}
-		e.MoveCursor(-1, 0)
-		text := doc.Delete(pos - 1)
+		text := doc.Delete(e.cursor)
 		e.SetText(text)
-		msg = message{Type: "operation", Operation: Operation{Type: "delete", Position: pos - 1}}
+		msg = message{Type: "operation", Operation: Operation{Type: "delete", Position: e.cursor}}
+		e.MoveCursor(-1, 0)
 	}
 
 	_ = conn.WriteJSON(msg)
