@@ -10,8 +10,8 @@ COPY ./ ./
 
 RUN apk add --no-cache bash
 
-RUN go build -o /rowix-server ./server/main.go
+RUN go build -o ./rowix-server ./server/main.go
 
 EXPOSE 8080
 
-CMD [ "/rowix-server -addr rowix-server.fly.dev" ]
+CMD [ "/app/rowix-server" ]

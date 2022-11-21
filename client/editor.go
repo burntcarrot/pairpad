@@ -9,17 +9,13 @@ import (
 
 type Editor struct {
 	text   []rune
-	x      int
-	y      int
+	cursor int
 	width  int
 	height int
 }
 
 func NewEditor() *Editor {
-	return &Editor{
-		x: 1,
-		y: 1,
-	}
+	return &Editor{}
 }
 
 func (e *Editor) GetText() []rune {
@@ -31,11 +27,17 @@ func (e *Editor) SetText(text string) {
 }
 
 func (e *Editor) GetX() int {
-	return e.x
+	x, _ := e.calcCursorXY(e.cursor)
+	return x
+}
+
+func (e *Editor) SetX(x int) {
+	e.cursor = x
 }
 
 func (e *Editor) GetY() int {
-	return e.y
+	_, y := e.calcCursorXY(e.cursor)
+	return y
 }
 
 func (e *Editor) GetWidth() int {
@@ -53,30 +55,24 @@ func (e *Editor) SetSize(w, h int) {
 
 // AddRune adds a rune to the editor's state and updates position.
 func (e *Editor) AddRune(r rune) {
-	cursor := e.calcCursor()
-	if cursor == 0 {
+	if e.cursor == 0 {
 		e.text = append([]rune{r}, e.text...)
-	} else if cursor < len(e.text) {
-		e.text = append(e.text[:cursor], e.text[cursor-1:]...)
-		e.text[cursor] = r
+	} else if e.cursor < len(e.text) {
+		e.text = append(e.text[:e.cursor], e.text[e.cursor-1:]...)
+		e.text[e.cursor] = r
 	} else {
-		e.text = append(e.text[:cursor], r)
+		e.text = append(e.text[:e.cursor], r)
 	}
-	if r == rune('\n') {
-		e.x = 1
-		e.y += 1
-	} else {
-		e.x += runewidth.RuneWidth(r)
-	}
+	e.cursor++
 }
 
 // Draw updates the UI by setting cells with the editor's content.
 func (e *Editor) Draw() {
 	_ = termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-	termbox.SetCursor(e.x-1, e.y-1)
-	x := 0
-	y := 0
+	cx, cy := e.calcCursorXY(e.cursor)
+	termbox.SetCursor(cx-1, cy-1)
 
+	x, y := 0, 0
 	for i := 0; i < len(e.text); i++ {
 		if e.text[i] == rune('\n') {
 			x = 0
@@ -101,10 +97,10 @@ func (e *Editor) Draw() {
 
 // showPositions shows the positions with other details.
 func (e *Editor) showPositions() {
-	x, y := e.calcCursorXY(e.calcCursor())
+	x, y := e.calcCursorXY(e.cursor)
 
 	// Construct message for debugging.
-	str := fmt.Sprintf("x=%d, y=%d, cursor=%d, len(text)=%d, x,y=%d,%d", e.x, e.y, e.calcCursor(), len(e.text), x, y)
+	str := fmt.Sprintf("x=%d, y=%d, cursor=%d, len(text)=%d", x, y, e.cursor, len(e.text))
 
 	for i, r := range []rune(str) {
 		termbox.SetCell(i, e.height-1, r, termbox.ColorDefault, termbox.ColorDefault)
@@ -112,49 +108,16 @@ func (e *Editor) showPositions() {
 }
 
 // MoveCursor updates the cursor position.
-func (e *Editor) MoveCursor(x, y int) {
-	c := e.calcCursor()
+func (e *Editor) MoveCursor(x, _ int) {
+	newCursor := e.cursor + x
 
-	if x > 0 {
-		if c+x <= len(e.text) {
-			e.x, e.y = e.calcCursorXY(c + x)
-		}
-	} else {
-		if 0 <= c+x {
-			if e.text[c+x] == rune('\n') {
-				e.x, e.y = e.calcCursorXY(c + x - 1)
-			} else {
-				e.x, e.y = e.calcCursorXY(c + x)
-			}
-		}
+	if newCursor < 0 {
+		newCursor = 0
 	}
-}
-
-// CalcCursor calculates the cursor position.
-func (e *Editor) calcCursor() int {
-	ri := 0
-	y := 1
-	x := 0
-
-	for y < e.y {
-		for _, r := range e.text {
-			ri++
-			if r == '\n' {
-				y++
-				break
-			}
-		}
+	if newCursor > len(e.text) {
+		newCursor = len(e.text)
 	}
-
-	for _, r := range e.text[ri:] {
-		if x >= e.x-runewidth.RuneWidth(r) {
-			break
-		}
-		x += runewidth.RuneWidth(r)
-		ri++
-	}
-
-	return ri
+	e.cursor = newCursor
 }
 
 // calcCursorXY calculates cursor position from the index obtained from the content.

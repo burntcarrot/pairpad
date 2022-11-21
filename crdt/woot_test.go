@@ -62,7 +62,7 @@ func TestIntegrateInsert_SamePosition(t *testing.T) {
 	}
 
 	// Insert a new character at the start. (IDPrevious = start)
-	newChar := Character{ID: "3", Visible: false, Value: "b", IDPrevious: "1", IDNext: "2"}
+	newChar := Character{ID: "3", Visible: false, Value: "b", IDPrevious: "start", IDNext: "1"}
 
 	charPrev := Character{ID: "start", Visible: false, Value: "", IDPrevious: "", IDNext: "1"}
 	charNext := Character{ID: "1", Visible: false, Value: "e", IDPrevious: "start", IDNext: "2"}
