@@ -146,10 +146,10 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			e.MoveCursor(1, 0)
 			e.Draw()
 		case termbox.KeyHome:
-			e.SetX(1)
+			e.SetX(0)
 			e.Draw()
 		case termbox.KeyEnd:
-			e.SetX(len(e.text) + 1)
+			e.SetX(len(e.text))
 			e.Draw()
 		case termbox.KeyBackspace, termbox.KeyBackspace2:
 			performOperation(OperationDelete, ev, conn)
