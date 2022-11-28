@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/burntcarrot/rowix/crdt"
 	"github.com/gorilla/websocket"
@@ -15,10 +17,11 @@ import (
 )
 
 type message struct {
-	Username  string    `json:"username"`
-	Text      string    `json:"text"`
-	Type      string    `json:"type"`
-	Operation Operation `json:"operation"`
+	Username  string         `json:"username"`
+	Text      string         `json:"text"`
+	Type      string         `json:"type"`
+	Operation Operation      `json:"operation"`
+	Document  *crdt.Document `json:"document"`
 }
 
 type Operation struct {
@@ -64,9 +67,13 @@ func main() {
 	doc = crdt.New()
 
 	// Get WebSocket connection.
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 2 * time.Minute,
+	}
+
+	conn, _, err := dialer.Dial(u.String(), nil)
 	if err != nil {
-		fmt.Printf("Connection error, exiting: %s", err)
+		fmt.Printf("Connection error, exiting: %s\n", err)
 		os.Exit(0)
 	}
 	defer conn.Close()
@@ -74,6 +81,9 @@ func main() {
 	// Send joining message.
 	msg := message{Username: name, Text: "has joined the session.", Type: "info"}
 	_ = conn.WriteJSON(msg)
+
+	// syncMsg := message{Type: "syncReq"}
+	// _ = conn.WriteJSON(syncMsg)
 
 	// open logging file  and create if non-existent
 	file, err := os.OpenFile("help.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -87,7 +97,11 @@ func main() {
 
 	err = UI(conn, &doc)
 	if err != nil {
-		fmt.Printf("TUI error, exiting: %s", err)
+		if strings.HasPrefix(err.Error(), "rowix") {
+			fmt.Println("exiting session.")
+			os.Exit(0)
+		}
+		fmt.Printf("TUI error, exiting: %s\n", err)
 		os.Exit(0)
 	}
 }
@@ -127,7 +141,7 @@ func mainLoop(e *Editor, conn *websocket.Conn, doc *crdt.Document) error {
 			}
 
 		case msg := <-msgChan:
-			handleMsg(msg, doc)
+			handleMsg(msg, doc, conn)
 		}
 	}
 }
@@ -138,7 +152,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 	case termbox.EventKey:
 		switch ev.Key {
 		case termbox.KeyEsc, termbox.KeyCtrlC:
-			return errors.New("exiting")
+			return errors.New("rowix: exiting")
 		case termbox.KeyArrowLeft, termbox.KeyCtrlB:
 			e.MoveCursor(-1, 0)
 			e.Draw()
@@ -146,10 +160,10 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			e.MoveCursor(1, 0)
 			e.Draw()
 		case termbox.KeyHome:
-			e.SetX(1)
+			e.SetX(0)
 			e.Draw()
 		case termbox.KeyEnd:
-			e.SetX(len(e.text) + 1)
+			e.SetX(len(e.text))
 			e.Draw()
 		case termbox.KeyBackspace, termbox.KeyBackspace2:
 			performOperation(OperationDelete, ev, conn)
@@ -220,12 +234,20 @@ func getTermboxChan() chan termbox.Event {
 }
 
 // handleMsg updates the CRDT document with the contents of the message.
-func handleMsg(msg message, doc *crdt.Document) {
-	switch msg.Operation.Type {
-	case "insert":
-		_, _ = doc.Insert(msg.Operation.Position, msg.Operation.Value)
-	case "delete":
-		_ = doc.Delete(msg.Operation.Position)
+func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
+	if msg.Type == "syncResp" {
+		*doc = *msg.Document
+		logger.Printf("%+v\n", msg.Document)
+	} else if msg.Type == "docReq" {
+		docMsg := message{Type: "docResp", Document: doc}
+		conn.WriteJSON(&docMsg)
+	} else {
+		switch msg.Operation.Type {
+		case "insert":
+			_, _ = doc.Insert(msg.Operation.Position, msg.Operation.Value)
+		case "delete":
+			_ = doc.Delete(msg.Operation.Position)
+		}
 	}
 
 	e.SetText(crdt.Content(*doc))
