@@ -155,16 +155,12 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			return errors.New("rowix: exiting")
 		case termbox.KeyArrowLeft, termbox.KeyCtrlB:
 			e.MoveCursor(-1, 0)
-			e.Draw()
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:
 			e.MoveCursor(1, 0)
-			e.Draw()
 		case termbox.KeyHome:
 			e.SetX(0)
-			e.Draw()
 		case termbox.KeyEnd:
 			e.SetX(len(e.text))
-			e.Draw()
 		case termbox.KeyBackspace, termbox.KeyBackspace2:
 			performOperation(OperationDelete, ev, conn)
 		case termbox.KeyDelete:
@@ -184,6 +180,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			}
 		}
 	}
+	e.Draw()
 	return nil
 }
 
@@ -219,7 +216,6 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	}
 
 	_ = conn.WriteJSON(msg)
-	e.Draw()
 }
 
 // getTermboxChan returns a channel of termbox Events repeatedly waiting on user input.
