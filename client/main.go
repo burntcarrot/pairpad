@@ -235,7 +235,7 @@ func getTermboxChan() chan termbox.Event {
 
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
-	if msg.Type == "syncResp" {
+	if msg.Type == "docResp" {
 		*doc = *msg.Document
 		logger.Printf("%+v\n", msg.Document)
 	} else if msg.Type == "docReq" {
