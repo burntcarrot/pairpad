@@ -47,6 +47,7 @@ func main() {
 	server := flag.String("server", "localhost:8080", "Server network address")
 	path := flag.String("path", "/", "Server path")
 	secure := flag.Bool("wss", false, "Use wss by default")
+	login := flag.Bool("login", false, "Whether the login process before joining is necessary")
 	flag.Parse()
 
 	// Construct WebSocket URL.
@@ -58,10 +59,14 @@ func main() {
 	}
 
 	// Read username.
-	fmt.Print("Enter your name: ")
-	s = bufio.NewScanner(os.Stdin)
-	s.Scan()
-	name = s.Text()
+	if *login {
+		fmt.Print("Enter your name: ")
+		s = bufio.NewScanner(os.Stdin)
+		s.Scan()
+		name = s.Text()
+	} else {
+		name = "abc"
+	}
 
 	// Initialize document.
 	doc = crdt.New()
@@ -95,6 +100,7 @@ func main() {
 
 	logger = log.New(file, "operations:", log.LstdFlags)
 
+	// start local session
 	err = UI(conn, &doc)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "rowix") {
@@ -189,6 +195,7 @@ const (
 	OperationDelete
 )
 
+// performOperation performs a CRDT insert or delete operation on the local document and sends a message over the WebSocket connection
 func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Get position and value.
 	ch := string(ev.Ch)
@@ -231,7 +238,7 @@ func getTermboxChan() chan termbox.Event {
 
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
-	if msg.Type == "docResp" {
+	if msg.Type == "syncResp" {
 		*doc = *msg.Document
 		logger.Printf("%+v\n", msg.Document)
 	} else if msg.Type == "docReq" {
