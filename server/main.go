@@ -67,7 +67,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	// doc := crdt.New()
 	var doc *crdt.Document
 	color.Yellow("total active clients: %d\n", len(activeClients))
-	if len(activeClients) > 1 {
+	if len(activeClients) > 0 {
 		// at least 2 clients for requesting a document
 		for clientConn, _ := range activeClients {
 			// send a docReq message to a client
@@ -82,11 +82,13 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				color.Red("Failed to receive document: %v, msg: %+v\n", err, msg)
 			}
+			color.Red("received document from other client: %+v", msg)
+
 			doc = msg.Document
 			break
 		}
 
-		msg := message{Type: "syncResp", Document: doc}
+		msg := message{Type: "docResp", Document: doc}
 		err = conn.WriteJSON(&msg)
 		if err != nil {
 			color.Red("Failed to send syncResp: %v\n", err)
@@ -125,8 +127,8 @@ func handleMsg() {
 		t := time.Now().Format(time.ANSIC)
 		if msg.Type == "info" {
 			color.Green("%s >> %s %s (ID: %s)\n", t, msg.Username, msg.Text, msg.ID)
-		} else if msg.Type == "syncReq" {
-			color.Green("%s >> syncReq sent from ID: %s\n", t, msg.ID)
+		} else if msg.Type == "docReq" {
+			color.Green("%s >> docReq sent from ID: %s\n", t, msg.ID)
 		} else if msg.Type == "operation" {
 			color.Green("operation >> %+v from ID=%s\n", msg.Operation, msg.ID)
 		} else {
