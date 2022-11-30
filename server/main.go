@@ -36,6 +36,8 @@ var activeClients = make(map[*websocket.Conn]uuid.UUID)
 // Channel for client messages.
 var messageChan = make(chan message)
 
+var docChan = make(chan message)
+
 func main() {
 	// Parse flags.
 	addr := flag.String("addr", ":8080", "Server's network address")
@@ -78,11 +80,13 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// wait for a client to send a document
-			err = clientConn.ReadJSON(&msg)
-			if err != nil {
-				color.Red("Failed to receive document: %v, msg: %+v\n", err, msg)
-			}
-			color.Red("received document from other client: %+v", msg)
+			// err = clientConn.ReadJSON(&msg)
+			// if err != nil {
+			// 	color.Red("Failed to receive document: %v, msg: %+v\n", err, msg)
+			// }
+			// color.Red("received document from other client: %+v", msg)
+			color.Green("document response content: %v", msg.Document)
+			msg = <-docChan
 
 			doc = msg.Document
 			break
@@ -91,7 +95,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		msg := message{Type: "docResp", Document: doc}
 		err = conn.WriteJSON(&msg)
 		if err != nil {
-			color.Red("Failed to send syncResp: %v\n", err)
+			color.Red("Failed to send docResp: %v\n", err)
 		}
 	}
 
@@ -131,6 +135,9 @@ func handleMsg() {
 			color.Green("%s >> docReq sent from ID: %s\n", t, msg.ID)
 		} else if msg.Type == "operation" {
 			color.Green("operation >> %+v from ID=%s\n", msg.Operation, msg.ID)
+		} else if msg.Type == "docResp" {
+			color.Green("Got docResp")
+			docChan <- msg
 		} else {
 			color.Green("%s >> %+v\n", t, msg)
 		}
