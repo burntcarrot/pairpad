@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/burntcarrot/rowix/crdt"
 	"github.com/gorilla/websocket"
 	"github.com/nsf/termbox-go"
@@ -65,7 +66,7 @@ func main() {
 		s.Scan()
 		name = s.Text()
 	} else {
-		name = "abc"
+		name = randomdata.SillyName()
 	}
 
 	// Initialize document.
@@ -238,7 +239,7 @@ func getTermboxChan() chan termbox.Event {
 
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
-	if msg.Type == "syncResp" {
+	if msg.Type == "docResp" {
 		*doc = *msg.Document
 		logger.Printf("%+v\n", msg.Document)
 	} else if msg.Type == "docReq" {
