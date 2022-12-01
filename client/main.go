@@ -208,7 +208,12 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 		r := []rune(ch)
 		e.AddRune(r[0])
 
-		text, _ := doc.Insert(e.cursor, ch)
+		text, err := doc.Insert(e.cursor, ch)
+		if err != nil {
+			e.SetText(text)
+			logger.Printf("CRDT error: %v\n", err)
+		}
+
 		e.SetText(text)
 		// logger.Println(crdt.Content(doc))
 		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: e.cursor, Value: ch}}
