@@ -13,6 +13,7 @@ import (
 
 	"github.com/Pallinder/go-randomdata"
 	"github.com/burntcarrot/rowix/crdt"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nsf/termbox-go"
 )
@@ -21,6 +22,7 @@ type message struct {
 	Username  string         `json:"username"`
 	Text      string         `json:"text"`
 	Type      string         `json:"type"`
+	ID        uuid.UUID      `json:"ID"`
 	Operation Operation      `json:"operation"`
 	Document  *crdt.Document `json:"document"`
 }
@@ -41,9 +43,6 @@ var logger *log.Logger
 var e *Editor
 
 func main() {
-	var name string
-	var s *bufio.Scanner
-
 	// Parse flags.
 	server := flag.String("server", "localhost:8080", "Server network address")
 	path := flag.String("path", "/", "Server path")
@@ -59,7 +58,10 @@ func main() {
 		u = url.URL{Scheme: "ws", Host: *server, Path: *path}
 	}
 
-	// Read username.
+	var name string
+	var s *bufio.Scanner
+
+	// Read username based if login flag is set to true, otherwise generate a random name.
 	if *login {
 		fmt.Print("Enter your name: ")
 		s = bufio.NewScanner(os.Stdin)
@@ -88,9 +90,6 @@ func main() {
 	msg := message{Username: name, Text: "has joined the session.", Type: "info"}
 	_ = conn.WriteJSON(msg)
 
-	// syncMsg := message{Type: "syncReq"}
-	// _ = conn.WriteJSON(syncMsg)
-
 	// open logging file  and create if non-existent
 	file, err := os.OpenFile("help.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -99,7 +98,7 @@ func main() {
 	}
 	defer file.Close()
 
-	logger = log.New(file, "operations:", log.LstdFlags)
+	logger = log.New(file, "--- name: "+name+" >> ", log.LstdFlags)
 
 	// start local session
 	err = UI(conn, &doc)
@@ -239,11 +238,12 @@ func getTermboxChan() chan termbox.Event {
 
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
-	if msg.Type == "docResp" {
+	if msg.Type == "docResp" { //update local document
+		logger.Printf("docResp received, updating local doc%+v\n", msg.Document)
 		*doc = *msg.Document
-		logger.Printf("%+v\n", msg.Document)
-	} else if msg.Type == "docReq" {
-		docMsg := message{Type: "docResp", Document: doc}
+	} else if msg.Type == "docReq" { // send local document as docResp message
+		logger.Printf("docReq received, sending local document to %v\n", msg.ID)
+		docMsg := message{Type: "docResp", Document: doc, ID: msg.ID}
 		conn.WriteJSON(&docMsg)
 	} else {
 		switch msg.Operation.Type {

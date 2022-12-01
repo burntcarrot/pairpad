@@ -46,6 +46,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleConn)
 
+	// Handle document syncing
+	go handleSync()
 	// Handle incoming messages.
 	go handleMsg()
 
@@ -66,42 +68,27 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// doc := crdt.New()
-	var doc *crdt.Document
 	color.Yellow("total active clients: %d\n", len(activeClients))
-	if len(activeClients) > 0 {
-		// at least 2 clients for requesting a document
-		for clientConn, _ := range activeClients {
-			// send a docReq message to a client
-			msg := message{Type: "docReq"}
+
+	// Generate a UUID for the client and add client connection to the map.
+	newID := uuid.New()
+	activeClients[conn] = newID
+
+	// send a document request to an existing client
+	for clientConn, id := range activeClients {
+		if id != newID {
+			msg := message{Type: "docReq", ID: newID}
+			color.Cyan("sending docReq to %s on behalf of %s", id, newID)
 			err = clientConn.WriteJSON(&msg)
 			if err != nil {
 				color.Red("Failed to send docReq: %v\n", err)
+				continue
 			}
-
-			// wait for a client to send a document
-			// err = clientConn.ReadJSON(&msg)
-			// if err != nil {
-			// 	color.Red("Failed to receive document: %v, msg: %+v\n", err, msg)
-			// }
-			// color.Red("received document from other client: %+v", msg)
-			color.Green("document response content: %v", msg.Document)
-			msg = <-docChan
-
-			doc = msg.Document
 			break
-		}
-
-		msg := message{Type: "docResp", Document: doc}
-		err = conn.WriteJSON(&msg)
-		if err != nil {
-			color.Red("Failed to send docResp: %v\n", err)
 		}
 	}
 
-	// Generate a UUID for the client.
-	activeClients[conn] = uuid.New()
-
+	// read messages from the connection and send to channel to broadcast
 	for {
 		var msg message
 
@@ -116,7 +103,16 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		// Set message ID
 		msg.ID = activeClients[conn]
 
-		// Send message to messageChan.
+		// Send docResp to handleSync function
+		if msg.Type == "docResp" {
+			docChan <- msg
+			continue
+		} else {
+			// Set message ID
+			msg.ID = activeClients[conn]
+		}
+
+		// Send message to messageChan for logging and broadcasting
 		messageChan <- msg
 	}
 }
@@ -131,13 +127,8 @@ func handleMsg() {
 		t := time.Now().Format(time.ANSIC)
 		if msg.Type == "info" {
 			color.Green("%s >> %s %s (ID: %s)\n", t, msg.Username, msg.Text, msg.ID)
-		} else if msg.Type == "docReq" {
-			color.Green("%s >> docReq sent from ID: %s\n", t, msg.ID)
 		} else if msg.Type == "operation" {
 			color.Green("operation >> %+v from ID=%s\n", msg.Operation, msg.ID)
-		} else if msg.Type == "docResp" {
-			color.Green("Got docResp")
-			docChan <- msg
 		} else {
 			color.Green("%s >> %+v\n", t, msg)
 		}
@@ -156,5 +147,20 @@ func handleMsg() {
 				}
 			}
 		}
+	}
+}
+
+func handleSync() {
+	for {
+		docRespMsg := <-docChan
+		color.Cyan("got docRespMsg with ID %s", docRespMsg.ID)
+		for client, UUID := range activeClients {
+			color.Yellow("client: %s", UUID)
+			if UUID == docRespMsg.ID {
+				color.Cyan("sending docResp to %s", docRespMsg.ID)
+				client.WriteJSON(docRespMsg)
+			}
+		}
+
 	}
 }
