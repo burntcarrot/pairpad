@@ -47,6 +47,14 @@ func New() Document {
 // Utility functions
 //////////////////////
 
+func (doc *Document) SetText(newDoc Document) {
+	for _, char := range newDoc.Characters {
+		// c := Character{ID: fmt.Sprint(SiteID) + fmt.Sprint(LocalClock), Visible: char.Visible, Value: char.Value, IDPrevious: char.IDPrevious, IDNext: char.IDNext}
+		c := Character{ID: char.ID, Visible: char.Visible, Value: char.Value, IDPrevious: char.IDPrevious, IDNext: char.IDNext}
+		doc.Characters = append(doc.Characters, c)
+	}
+}
+
 // Content returns the content of the document.
 func Content(doc Document) string {
 	value := ""

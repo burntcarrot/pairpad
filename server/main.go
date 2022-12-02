@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/burntcarrot/rowix/crdt"
@@ -13,12 +14,17 @@ import (
 )
 
 type message struct {
-	Username  string `json:"username"`
-	Text      string `json:"text"`
-	Type      string `json:"type"`
-	ID        uuid.UUID
-	Operation Operation      `json:"operation"`
-	Document  *crdt.Document `json:"document"`
+	Username  string        `json:"username"`
+	Text      string        `json:"text"`
+	Type      string        `json:"type"`
+	ID        uuid.UUID     `json:"ID"`
+	Operation Operation     `json:"operation"`
+	Document  crdt.Document `json:"document"`
+}
+
+type clientInfo struct {
+	Username string `json:"username"`
+	SiteID   string `json:"siteID"`
 }
 
 type Operation struct {
@@ -32,6 +38,10 @@ var upgrader = websocket.Upgrader{}
 
 // Map to store currently active client connections.
 var activeClients = make(map[*websocket.Conn]uuid.UUID)
+
+// var siteIDs = make(map[string]uuid.UUID)
+
+var clientInfos = make(map[uuid.UUID]clientInfo)
 
 // Channel for client messages.
 var messageChan = make(chan message)
@@ -73,6 +83,16 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	// Generate a UUID for the client and add client connection to the map.
 	newID := uuid.New()
 	activeClients[conn] = newID
+
+	// generate a unique siteID and assign send it to the client
+	siteID := strconv.Itoa(len(clientInfos))
+	clientInfos[newID] = clientInfo{SiteID: siteID}
+	color.Magenta("clientInfos after SiteID generation: %+v", clientInfos)
+	color.Yellow("Assigning siteID: %+v", clientInfos[newID])
+	siteIDMsg := message{Type: "SiteID", Text: clientInfos[newID].SiteID, ID: newID}
+	if err := conn.WriteJSON(siteIDMsg); err != nil {
+		color.Red("ERROR: didn't send siteID message")
+	}
 
 	// send a document request to an existing client
 	for clientConn, id := range activeClients {
@@ -126,6 +146,7 @@ func handleMsg() {
 		// Log each message to stdout.
 		t := time.Now().Format(time.ANSIC)
 		if msg.Type == "info" {
+			// color.Green("%s >> %s %s (ID: %s)\n", t, clientInfos[msg.ID], msg.Text, msg.ID)
 			color.Green("%s >> %s %s (ID: %s)\n", t, msg.Username, msg.Text, msg.ID)
 		} else if msg.Type == "operation" {
 			color.Green("operation >> %+v from ID=%s\n", msg.Operation, msg.ID)

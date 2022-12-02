@@ -5,26 +5,27 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
-	"net/url"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/Pallinder/go-randomdata"
 	"github.com/burntcarrot/rowix/crdt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nsf/termbox-go"
+	"log"
+	"net/url"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type message struct {
-	Username  string         `json:"username"`
-	Text      string         `json:"text"`
-	Type      string         `json:"type"`
-	ID        uuid.UUID      `json:"ID"`
-	Operation Operation      `json:"operation"`
-	Document  *crdt.Document `json:"document"`
+	Username  string        `json:"username"`
+	Text      string        `json:"text"`
+	Type      string        `json:"type"`
+	ID        uuid.UUID     `json:"ID"`
+	Operation Operation     `json:"operation"`
+	Document  crdt.Document `json:"document"`
 }
 
 type Operation struct {
@@ -100,6 +101,7 @@ func main() {
 
 	logger = log.New(file, "--- name: "+name+" >> ", log.LstdFlags)
 
+	logger = log.New(file, fmt.Sprintf("--- name: %s >> ", name), log.LstdFlags)
 	// start local session
 	err = UI(conn, &doc)
 	if err != nil {
@@ -186,6 +188,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			}
 		}
 	}
+	logger.Printf("TERMBOX: length of text: %v, cursor position: %v\n", len(e.text), e.cursor)
 	e.Draw()
 	return nil
 }
@@ -205,6 +208,7 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Modify local state (CRDT) first.
 	switch opType {
 	case OperationInsert:
+		logger.Printf("LOCAL INSERT: %s at cursor position %v\n", ch, e.cursor)
 		r := []rune(ch)
 		e.AddRune(r[0])
 
@@ -215,9 +219,9 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 		}
 
 		e.SetText(text)
-		// logger.Println(crdt.Content(doc))
 		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: e.cursor, Value: ch}}
 	case OperationDelete:
+		logger.Printf("LOCAL DELETE:  cursor position %v\n", e.cursor)
 		if e.cursor-1 <= 0 {
 			e.cursor = 1
 		}
@@ -226,8 +230,16 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 		msg = message{Type: "operation", Operation: Operation{Type: "delete", Position: e.cursor}}
 		e.MoveCursor(-1, 0)
 	}
-
+	// logger.Println(crdt.Content(doc))
+	print(doc)
 	_ = conn.WriteJSON(msg)
+}
+
+func print(doc crdt.Document) {
+	logger.Printf("---DOCUMENT STATE---")
+	for i, c := range doc.Characters {
+		logger.Printf("index: %v  value: %s  ID: %v  IDPrev: %v  IDNext: %v  ", i, c.Value, c.ID, c.IDPrevious, c.IDNext)
+	}
 }
 
 // getTermboxChan returns a channel of termbox Events repeatedly waiting on user input.
@@ -244,22 +256,36 @@ func getTermboxChan() chan termbox.Event {
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
 	if msg.Type == "docResp" { //update local document
-		logger.Printf("docResp received, updating local doc%+v\n", msg.Document)
-		*doc = *msg.Document
+		logger.Printf("DOCRESP RECEIVED, updating local doc%+v\n", msg.Document)
+		logger.Printf("MESSAGE DOC: %+v\n", msg.Document)
+		// doc.SetText(msg.Document)
+		// logger.Printf("COPIED DOC:  %+v\n{}", *doc)
+		*doc = msg.Document
 	} else if msg.Type == "docReq" { // send local document as docResp message
-		logger.Printf("docReq received, sending local document to %v\n", msg.ID)
-		docMsg := message{Type: "docResp", Document: doc, ID: msg.ID}
+		logger.Printf("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
+		docMsg := message{Type: "docResp", Document: *doc, ID: msg.ID}
 		conn.WriteJSON(&docMsg)
+	} else if msg.Type == "SiteID" {
+		siteID, err := strconv.Atoi(msg.Text)
+		if err != nil {
+			panic(err)
+		}
+		crdt.SiteID = siteID
+		logger.Printf("SITE ID %v, INTENDED SITE ID: %v", crdt.SiteID, siteID)
 	} else {
 		switch msg.Operation.Type {
 		case "insert":
 			_, _ = doc.Insert(msg.Operation.Position, msg.Operation.Value)
+			logger.Printf("REMOTE INSERT: %s at position %v\n", msg.Operation.Value, msg.Operation.Position)
 		case "delete":
 			_ = doc.Delete(msg.Operation.Position)
+			logger.Printf("REMOTE DELETE: position %v\n", msg.Operation.Position)
 		}
 	}
-
+	// logger.Printf("cursor position: %v, document length: %v\n", )
+	print(*doc)
 	e.SetText(crdt.Content(*doc))
+	// logger.Printf("MESSAGE: length of text: %v, cursor position: %v\n", len(e.text), e.cursor)
 	e.Draw()
 }
 
