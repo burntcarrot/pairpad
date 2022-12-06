@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/burntcarrot/rowix/crdt"
@@ -13,12 +14,18 @@ import (
 )
 
 type message struct {
-	Username  string `json:"username"`
-	Text      string `json:"text"`
-	Type      string `json:"type"`
-	ID        uuid.UUID
-	Operation Operation      `json:"operation"`
-	Document  *crdt.Document `json:"document"`
+	Username  string        `json:"username"`
+	Text      string        `json:"text"`
+	Type      string        `json:"type"`
+	ID        uuid.UUID     `json:"ID"`
+	Operation Operation     `json:"operation"`
+	Document  crdt.Document `json:"document"`
+}
+
+type clientInfo struct {
+	Username string `json:"username"`
+	SiteID   string `json:"siteID"`
+	Conn     *websocket.Conn
 }
 
 type Operation struct {
@@ -30,11 +37,14 @@ type Operation struct {
 // Upgrader instance to upgrade all HTTP connections to a WebSocket.
 var upgrader = websocket.Upgrader{}
 
-// Map to store currently active client connections.
-var activeClients = make(map[*websocket.Conn]uuid.UUID)
+// Map to store active client connections.
+var activeClients = make(map[uuid.UUID]clientInfo)
 
 // Channel for client messages.
 var messageChan = make(chan message)
+
+// Channel for document sync messages.
+var docChan = make(chan message)
 
 func main() {
 	// Parse flags.
@@ -43,6 +53,9 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleConn)
+
+	// Handle document syncing
+	go handleSync()
 
 	// Handle incoming messages.
 	go handleMsg()
@@ -64,55 +77,64 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// doc := crdt.New()
-	var doc *crdt.Document
 	color.Yellow("total active clients: %d\n", len(activeClients))
-	if len(activeClients) > 0 {
-		// at least 2 clients for requesting a document
-		for clientConn, _ := range activeClients {
-			// send a docReq message to a client
-			msg := message{Type: "docReq"}
-			err = clientConn.WriteJSON(&msg)
+
+	// Generate the UUID and the site ID for the client.
+	clientID := uuid.New()
+	siteID := strconv.Itoa(len(activeClients))
+
+	// Add the client to the map of active clients.
+	c := clientInfo{Conn: conn, SiteID: siteID}
+	activeClients[clientID] = c
+
+	color.Magenta("activeClients after SiteID generation: %+v", activeClients)
+	color.Yellow("Assigning siteID: %s", c.SiteID)
+
+	// Generate a Site ID message.
+	siteIDMsg := message{Type: "SiteID", Text: c.SiteID, ID: clientID}
+	if err := conn.WriteJSON(siteIDMsg); err != nil {
+		color.Red("ERROR: didn't send siteID message")
+	}
+
+	// send a document request to an existing client
+	for id, clientInfo := range activeClients {
+		if id != clientID {
+			msg := message{Type: "docReq", ID: clientID}
+			color.Cyan("sending docReq to %s on behalf of %s", id, clientID)
+			err = clientInfo.Conn.WriteJSON(&msg)
 			if err != nil {
 				color.Red("Failed to send docReq: %v\n", err)
+				continue
 			}
-
-			// wait for a client to send a document
-			err = clientConn.ReadJSON(&msg)
-			if err != nil {
-				color.Red("Failed to receive document: %v, msg: %+v\n", err, msg)
-			}
-			color.Red("received document from other client: %+v", msg)
-
-			doc = msg.Document
 			break
-		}
-
-		msg := message{Type: "docResp", Document: doc}
-		err = conn.WriteJSON(&msg)
-		if err != nil {
-			color.Red("Failed to send syncResp: %v\n", err)
 		}
 	}
 
-	// Generate a UUID for the client.
-	activeClients[conn] = uuid.New()
-
+	// read messages from the connection and send to channel to broadcast
 	for {
 		var msg message
 
 		// Read message from the connection.
 		err := conn.ReadJSON(&msg)
 		if err != nil {
-			color.Red("Closing connection with ID: %v\n", activeClients[conn])
-			delete(activeClients, conn)
+			color.Red("Closing connection with username: %v\n", activeClients[clientID].Username)
+			delete(activeClients, clientID)
 			break
 		}
 
 		// Set message ID
-		msg.ID = activeClients[conn]
+		msg.ID = clientID
 
-		// Send message to messageChan.
+		// Send docResp to handleSync function
+		if msg.Type == "docResp" {
+			docChan <- msg
+			continue
+		} else {
+			// Set message ID
+			msg.ID = clientID
+		}
+
+		// Send message to messageChan for logging and broadcasting
 		messageChan <- msg
 	}
 }
@@ -126,9 +148,12 @@ func handleMsg() {
 		// Log each message to stdout.
 		t := time.Now().Format(time.ANSIC)
 		if msg.Type == "info" {
+			// Set the username received from the client to the clientInfo present in activeClients.
+			clientInfo := activeClients[msg.ID]
+			clientInfo.Username = msg.Username
+			activeClients[msg.ID] = clientInfo
+
 			color.Green("%s >> %s %s (ID: %s)\n", t, msg.Username, msg.Text, msg.ID)
-		} else if msg.Type == "docReq" {
-			color.Green("%s >> docReq sent from ID: %s\n", t, msg.ID)
 		} else if msg.Type == "operation" {
 			color.Green("operation >> %+v from ID=%s\n", msg.Operation, msg.ID)
 		} else {
@@ -136,17 +161,32 @@ func handleMsg() {
 		}
 
 		// Broadcast to all active clients.
-		for client, UUID := range activeClients {
+		for id, clientInfo := range activeClients {
 			// Check the UUID to prevent sending messages to their origin.
-			if UUID != msg.ID {
+			if id != msg.ID {
 				// Write JSON message.
-				color.Magenta("writing message to: %s, msg: %+v\n", UUID, msg)
-				err := client.WriteJSON(msg)
+				color.Magenta("writing message to: %s, msg: %+v\n", id, msg)
+				err := clientInfo.Conn.WriteJSON(msg)
 				if err != nil {
 					color.Red("Error sending message to client: %v\n", err)
-					client.Close()
-					delete(activeClients, client)
+					clientInfo.Conn.Close()
+					delete(activeClients, id)
 				}
+			}
+		}
+	}
+}
+
+func handleSync() {
+	for {
+		// Receive document response.
+		docRespMsg := <-docChan
+		color.Cyan("got docRespMsg: %+v", docRespMsg)
+
+		for UUID, clientInfo := range activeClients {
+			if UUID != docRespMsg.ID {
+				color.Cyan("sending docResp to %s", docRespMsg.ID)
+				_ = clientInfo.Conn.WriteJSON(docRespMsg)
 			}
 		}
 	}

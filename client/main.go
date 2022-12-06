@@ -8,20 +8,24 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Pallinder/go-randomdata"
 	"github.com/burntcarrot/rowix/crdt"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nsf/termbox-go"
 )
 
 type message struct {
-	Username  string         `json:"username"`
-	Text      string         `json:"text"`
-	Type      string         `json:"type"`
-	Operation Operation      `json:"operation"`
-	Document  *crdt.Document `json:"document"`
+	Username  string        `json:"username"`
+	Text      string        `json:"text"`
+	Type      string        `json:"type"`
+	ID        uuid.UUID     `json:"ID"`
+	Operation Operation     `json:"operation"`
+	Document  crdt.Document `json:"document"`
 }
 
 type Operation struct {
@@ -40,13 +44,11 @@ var logger *log.Logger
 var e *Editor
 
 func main() {
-	var name string
-	var s *bufio.Scanner
-
 	// Parse flags.
 	server := flag.String("server", "localhost:8080", "Server network address")
 	path := flag.String("path", "/", "Server path")
-	secure := flag.Bool("wss", false, "Use wss by default")
+	secure := flag.Bool("wss", false, "Enable a secure WebSocket connection")
+	login := flag.Bool("login", false, "Enable the login prompt")
 	flag.Parse()
 
 	// Construct WebSocket URL.
@@ -57,11 +59,18 @@ func main() {
 		u = url.URL{Scheme: "ws", Host: *server, Path: *path}
 	}
 
-	// Read username.
-	fmt.Print("Enter your name: ")
-	s = bufio.NewScanner(os.Stdin)
-	s.Scan()
-	name = s.Text()
+	var name string
+	var s *bufio.Scanner
+
+	// Read username based if login flag is set to true, otherwise generate a random name.
+	if *login {
+		fmt.Print("Enter your name: ")
+		s = bufio.NewScanner(os.Stdin)
+		s.Scan()
+		name = s.Text()
+	} else {
+		name = randomdata.SillyName()
+	}
 
 	// Initialize document.
 	doc = crdt.New()
@@ -82,19 +91,16 @@ func main() {
 	msg := message{Username: name, Text: "has joined the session.", Type: "info"}
 	_ = conn.WriteJSON(msg)
 
-	// syncMsg := message{Type: "syncReq"}
-	// _ = conn.WriteJSON(syncMsg)
-
 	// open logging file  and create if non-existent
-	file, err := os.OpenFile("help.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile("rowix.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		os.Exit(0)
 	}
 	defer file.Close()
 
-	logger = log.New(file, "operations:", log.LstdFlags)
-
+	logger = log.New(file, fmt.Sprintf("--- name: %s >> ", name), log.LstdFlags)
+	// start local session
 	err = UI(conn, &doc)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "rowix") {
@@ -155,27 +161,21 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			return errors.New("rowix: exiting")
 		case termbox.KeyArrowLeft, termbox.KeyCtrlB:
 			e.MoveCursor(-1, 0)
-			e.Draw()
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:
 			e.MoveCursor(1, 0)
-			e.Draw()
 		case termbox.KeyHome:
 			e.SetX(0)
-			e.Draw()
 		case termbox.KeyEnd:
 			e.SetX(len(e.text))
-			e.Draw()
 		case termbox.KeyBackspace, termbox.KeyBackspace2:
 			performOperation(OperationDelete, ev, conn)
 		case termbox.KeyDelete:
 			performOperation(OperationDelete, ev, conn)
-		case termbox.KeyTab: // TODO: add tabs?
+		case termbox.KeyTab:
 		case termbox.KeyEnter:
-			logger.Println("enter value:", ev.Ch)
 			ev.Ch = '\n'
 			performOperation(OperationInsert, ev, conn)
 		case termbox.KeySpace:
-			logger.Println("space value:", ev.Ch)
 			ev.Ch = ' '
 			performOperation(OperationInsert, ev, conn)
 		default:
@@ -184,6 +184,8 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			}
 		}
 	}
+
+	e.Draw()
 	return nil
 }
 
@@ -192,6 +194,7 @@ const (
 	OperationDelete
 )
 
+// performOperation performs a CRDT insert or delete operation on the local document and sends a message over the WebSocket connection
 func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Get position and value.
 	ch := string(ev.Ch)
@@ -201,14 +204,20 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Modify local state (CRDT) first.
 	switch opType {
 	case OperationInsert:
+		logger.Printf("LOCAL INSERT: %s at cursor position %v\n", ch, e.cursor)
 		r := []rune(ch)
 		e.AddRune(r[0])
 
-		text, _ := doc.Insert(e.cursor, ch)
+		text, err := doc.Insert(e.cursor, ch)
+		if err != nil {
+			e.SetText(text)
+			logger.Printf("CRDT error: %v\n", err)
+		}
+
 		e.SetText(text)
-		// logger.Println(crdt.Content(doc))
 		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: e.cursor, Value: ch}}
 	case OperationDelete:
+		logger.Printf("LOCAL DELETE:  cursor position %v\n", e.cursor)
 		if e.cursor-1 <= 0 {
 			e.cursor = 1
 		}
@@ -218,8 +227,18 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 		e.MoveCursor(-1, 0)
 	}
 
+	// Print document state to logs.
+	printDoc(doc)
+
 	_ = conn.WriteJSON(msg)
-	e.Draw()
+}
+
+// printDoc "prints" the document state to the logs.
+func printDoc(doc crdt.Document) {
+	logger.Printf("---DOCUMENT STATE---")
+	for i, c := range doc.Characters {
+		logger.Printf("index: %v  value: %s  ID: %v  IDPrev: %v  IDNext: %v  ", i, c.Value, c.ID, c.IDPrevious, c.IDNext)
+	}
 }
 
 // getTermboxChan returns a channel of termbox Events repeatedly waiting on user input.
@@ -235,21 +254,35 @@ func getTermboxChan() chan termbox.Event {
 
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
-	if msg.Type == "docResp" {
-		*doc = *msg.Document
-		logger.Printf("%+v\n", msg.Document)
-	} else if msg.Type == "docReq" {
-		docMsg := message{Type: "docResp", Document: doc}
-		conn.WriteJSON(&docMsg)
+	if msg.Type == "docResp" { //update local document
+		logger.Printf("DOCRESP RECEIVED, updating local doc%+v\n", msg.Document)
+		logger.Printf("MESSAGE DOC: %+v\n", msg.Document)
+		*doc = msg.Document
+	} else if msg.Type == "docReq" { // send local document as docResp message
+		logger.Printf("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
+		docMsg := message{Type: "docResp", Document: *doc, ID: msg.ID}
+		_ = conn.WriteJSON(&docMsg)
+	} else if msg.Type == "SiteID" {
+		siteID, err := strconv.Atoi(msg.Text)
+		if err != nil {
+			logger.Printf("failed to set siteID, err: %v\n", err)
+		}
+		crdt.SiteID = siteID
+		logger.Printf("SITE ID %v, INTENDED SITE ID: %v", crdt.SiteID, siteID)
 	} else {
 		switch msg.Operation.Type {
 		case "insert":
-			_, _ = doc.Insert(msg.Operation.Position, msg.Operation.Value)
+			_, err := doc.Insert(msg.Operation.Position, msg.Operation.Value)
+			if err != nil {
+				logger.Printf("failed to insert, err: %v\n", err)
+			}
+			logger.Printf("REMOTE INSERT: %s at position %v\n", msg.Operation.Value, msg.Operation.Position)
 		case "delete":
 			_ = doc.Delete(msg.Operation.Position)
+			logger.Printf("REMOTE DELETE: position %v\n", msg.Operation.Position)
 		}
 	}
-
+	printDoc(*doc)
 	e.SetText(crdt.Content(*doc))
 	e.Draw()
 }
@@ -265,7 +298,7 @@ func getMsgChan(conn *websocket.Conn) chan message {
 			err := conn.ReadJSON(&msg)
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("websocket error: %v", err)
+					logger.Printf("websocket error: %v", err)
 				}
 				break
 			}

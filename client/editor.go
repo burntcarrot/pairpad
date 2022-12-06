@@ -124,6 +124,15 @@ func (e *Editor) MoveCursor(x, _ int) {
 func (e *Editor) calcCursorXY(index int) (int, int) {
 	x := 1
 	y := 1
+
+	if index < 0 {
+		return x, y
+	}
+
+	if index > len(e.text) {
+		index = len(e.text)
+	}
+
 	for i := 0; i < index; i++ {
 		if e.text[i] == rune('\n') {
 			x = 1
