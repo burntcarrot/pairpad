@@ -102,7 +102,12 @@ func main() {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}()
 
 	logger = log.New(file, fmt.Sprintf("--- name: %s >> ", name), log.LstdFlags)
 
