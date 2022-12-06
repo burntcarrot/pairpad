@@ -186,7 +186,7 @@ func handleSync() {
 		for UUID, clientInfo := range activeClients {
 			if UUID != docRespMsg.ID {
 				color.Cyan("sending docResp to %s", docRespMsg.ID)
-				clientInfo.Conn.WriteJSON(docRespMsg)
+				_ = clientInfo.Conn.WriteJSON(docRespMsg)
 			}
 		}
 	}

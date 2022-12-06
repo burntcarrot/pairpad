@@ -261,7 +261,7 @@ func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
 	} else if msg.Type == "docReq" { // send local document as docResp message
 		logger.Printf("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
 		docMsg := message{Type: "docResp", Document: *doc, ID: msg.ID}
-		conn.WriteJSON(&docMsg)
+		_ = conn.WriteJSON(&docMsg)
 	} else if msg.Type == "SiteID" {
 		siteID, err := strconv.Atoi(msg.Text)
 		if err != nil {
