@@ -62,7 +62,15 @@ func main() {
 
 	// Start the server.
 	log.Printf("Starting server on %s", *addr)
-	err := http.ListenAndServe(*addr, mux)
+
+	server := &http.Server{
+		Addr:         *addr,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		Handler:      mux,
+	}
+
+	err := server.ListenAndServe()
 	if err != nil {
 		log.Fatal("Error starting server, exiting.", err)
 	}
@@ -129,9 +137,6 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		if msg.Type == "docResp" {
 			docChan <- msg
 			continue
-		} else {
-			// Set message ID
-			msg.ID = clientID
 		}
 
 		// Send message to messageChan for logging and broadcasting

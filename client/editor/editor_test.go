@@ -1,4 +1,4 @@
-package main
+package editor
 
 import (
 	"testing"
@@ -22,10 +22,10 @@ func TestAddRune(t *testing.T) {
 	e := NewEditor()
 
 	for _, tc := range tests {
-		e.cursor = tc.cursor
+		e.Cursor = tc.cursor
 		e.AddRune(tc.r)
 		if !cmp.Equal(e.GetText(), tc.expected) {
-			t.Errorf("got != expected, diff: %v\n", cmp.Diff(e.text, tc.expected))
+			t.Errorf("got != expected, diff: %v\n", cmp.Diff(e.Text, tc.expected))
 		}
 	}
 }
@@ -45,11 +45,11 @@ func TestCalcCursorXY(t *testing.T) {
 	}
 
 	e := NewEditor()
-	e.text = []rune("content\ntest")
+	e.Text = []rune("content\ntest")
 
 	for _, tc := range tests {
-		e.cursor = tc.cursor
-		x, y := e.calcCursorXY(e.cursor)
+		e.Cursor = tc.cursor
+		x, y := e.calcCursorXY(e.Cursor)
 
 		got := []int{x, y}
 		expected := []int{tc.expectedX, tc.expectedY}
@@ -74,13 +74,13 @@ func TestMoveCursor(t *testing.T) {
 	}
 
 	e := NewEditor()
-	e.text = []rune("content\ntest")
+	e.Text = []rune("content\ntest")
 
 	for _, tc := range tests {
-		e.cursor = tc.cursor
+		e.Cursor = tc.cursor
 		e.MoveCursor(tc.x, 0)
 
-		got := e.cursor
+		got := e.Cursor
 		expected := tc.expectedCursor
 
 		if !cmp.Equal(got, expected) {
