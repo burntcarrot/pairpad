@@ -72,10 +72,10 @@ func (e *Editor) Draw() {
 	cx, cy := e.calcCursorXY(e.cursor)
 	termbox.SetCursor(cx-1, cy-1)
 
-	x, y := 0, 0
+	x, y := 1, 1
 	for i := 0; i < len(e.text); i++ {
 		if e.text[i] == rune('\n') {
-			x = 0
+			x = 1
 			y++
 		} else {
 			if x < e.width {
