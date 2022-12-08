@@ -131,15 +131,52 @@ func (e *Editor) MoveCursor(x, y int) {
 
 	// move cursor down y cells
 	if y > 0 {
-		cx, cy := e.calcCursorXY(e.Cursor)
-		cy = cy + y
-		newCursor = e.calcCursor(cx, cy)
+		// for i := 0; i <= y; i++ {
+		n1 := 0 // index of next newline character
+		n2 := 0 // index of the newline character after n1
+
+		// note the position of the next two newline characters
+		for j := e.Cursor; j < len(e.Text); j++ {
+			if e.Text[j] == '\n' {
+				if n1 != 0 { // if the next newline character has already been found
+					n2 = j
+					break
+				}
+				n1 = j
+			}
+		}
+		newCursor := n2
+		for k := 0; k < n1-e.Cursor; k++ {
+			if newCursor == n1 {
+				break
+			}
+			newCursor--
+		}
+		// }
 	}
 	// move cursor up y cells
 	if y < 0 {
-		cx, cy := e.calcCursorXY(e.Cursor)
-		cy = cy - y
-		newCursor = e.calcCursor(cx, cy)
+		// for i := 0; i >= y; i-- {
+		n1 := 0 // index of previous newline character
+		n2 := 0 // index of the newline character before n1
+		// note the position of the previous two newline characters
+		for j := e.Cursor; j > 0; j-- {
+			if e.Text[j] == '\n' {
+				if n2 != 0 { // if the next newline character has already been found
+					n1 = j
+					break
+				}
+				n2 = j
+			}
+		}
+		newCursor := n1
+		for k := 0; k < n1-e.Cursor; k++ {
+			if newCursor == n1 {
+				break
+			}
+			newCursor++
+		}
+		// }
 	}
 
 	if newCursor < 0 {
@@ -175,30 +212,30 @@ func (e *Editor) calcCursorXY(index int) (int, int) {
 	return x, y
 }
 
-func (e *Editor) calcCursor(x, y int) int {
-	ri := 0
-	yi := 1
-	xi := 1
+// func (e *Editor) calcCursor(x, y int) int {
+// 	ri := 0
+// 	yi := 1
+// 	xi := 1
 
-	for yi < y {
-		for _, r := range e.Text {
-			ri++
-			if r == '\n' {
-				yi++
-				break
-			}
-		}
-		if ri > len(e.Text) {
-			ri = len(e.Text)
-		}
+// 	for yi < y {
+// 		for _, r := range e.Text {
+// 			ri++
+// 			if r == '\n' {
+// 				yi++
+// 				break
+// 			}
+// 		}
+// 		if ri > len(e.Text) {
+// 			ri = len(e.Text)
+// 		}
 
-		for _, r := range e.Text[ri:] {
-			if xi >= x-runewidth.RuneWidth(r) {
-				break
-			}
-			xi += runewidth.RuneWidth(r)
-			ri++
-		}
-	}
-	return ri
-}
+// 		for _, r := range e.Text[ri:] {
+// 			if xi >= x-runewidth.RuneWidth(r) {
+// 				break
+// 			}
+// 			xi += runewidth.RuneWidth(r)
+// 			ri++
+// 		}
+// 	}
+// 	return ri
+// }
