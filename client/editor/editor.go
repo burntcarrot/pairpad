@@ -126,8 +126,21 @@ func (e *Editor) showPositions() {
 }
 
 // MoveCursor updates the Cursor position.
-func (e *Editor) MoveCursor(x, _ int) {
+func (e *Editor) MoveCursor(x, y int) {
 	newCursor := e.Cursor + x
+
+	// move cursor down y cells
+	if y > 0 {
+		cx, cy := e.calcCursorXY(e.Cursor)
+		cy = cy + y
+		newCursor = e.calcCursor(cx, cy)
+	}
+	// move cursor up y cells
+	if y < 0 {
+		cx, cy := e.calcCursorXY(e.Cursor)
+		cy = cy - y
+		newCursor = e.calcCursor(cx, cy)
+	}
 
 	if newCursor < 0 {
 		newCursor = 0
@@ -160,4 +173,32 @@ func (e *Editor) calcCursorXY(index int) (int, int) {
 		}
 	}
 	return x, y
+}
+
+func (e *Editor) calcCursor(x, y int) int {
+	ri := 0
+	yi := 1
+	xi := 1
+
+	for yi < y {
+		for _, r := range e.Text {
+			ri++
+			if r == '\n' {
+				yi++
+				break
+			}
+		}
+		if ri > len(e.Text) {
+			ri = len(e.Text)
+		}
+
+		for _, r := range e.Text[ri:] {
+			if xi >= x-runewidth.RuneWidth(r) {
+				break
+			}
+			xi += runewidth.RuneWidth(r)
+			ri++
+		}
+	}
+	return ri
 }

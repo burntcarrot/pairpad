@@ -182,6 +182,10 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			e.MoveCursor(-1, 0)
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:
 			e.MoveCursor(1, 0)
+		case termbox.KeyArrowUp, termbox.KeyCtrlP:
+			e.MoveCursor(0, -1)
+		case termbox.KeyArrowDown, termbox.KeyCtrlN:
+			e.MoveCursor(0, 1)
 		case termbox.KeyHome:
 			e.SetX(0)
 		case termbox.KeyEnd:
