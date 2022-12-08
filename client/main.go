@@ -125,8 +125,6 @@ func main() {
 		}
 	}()
 
-	// logger = log.New(logFile, fmt.Sprintf("--- name: %s >> ", name), log.LstdFlags)
-
 	logger = logrus.New()
 	logger.SetOutput(io.Discard)
 	logger.SetFormatter(&logrus.JSONFormatter{})
