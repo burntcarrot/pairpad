@@ -8,9 +8,8 @@ RUN go mod download
 
 COPY ./ ./
 
-RUN apk add --no-cache bash
-
-RUN go build -o ./rowix-server ./server/main.go
+# skipcq: DOK-DL3018
+RUN apk add --no-cache bash && go build -o ./rowix-server ./server/main.go
 
 EXPOSE 8080
 

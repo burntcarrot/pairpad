@@ -47,6 +47,14 @@ func New() Document {
 // Utility functions
 //////////////////////
 
+func (doc *Document) SetText(newDoc Document) {
+	for _, char := range newDoc.Characters {
+		// c := Character{ID: fmt.Sprint(SiteID) + fmt.Sprint(LocalClock), Visible: char.Visible, Value: char.Value, IDPrevious: char.IDPrevious, IDNext: char.IDNext}
+		c := Character{ID: char.ID, Visible: char.Visible, Value: char.Value, IDPrevious: char.IDPrevious, IDNext: char.IDNext}
+		doc.Characters = append(doc.Characters, c)
+	}
+}
+
 // Content returns the content of the document.
 func Content(doc Document) string {
 	value := ""
@@ -141,6 +149,10 @@ func (doc *Document) Subseq(wcharacterStart, wcharacterEnd Character) ([]Charact
 		return doc.Characters, ErrBoundsNotPresent
 	}
 
+	if startPosition > endPosition {
+		return doc.Characters, ErrBoundsNotPresent
+	}
+
 	if startPosition == endPosition {
 		return []Character{}, nil
 	}
@@ -177,7 +189,12 @@ func (doc *Document) LocalInsert(char Character, position int) (*Document, error
 // Characters based off of the previous & next Character
 func (doc *Document) IntegrateInsert(char, charPrev, charNext Character) (*Document, error) {
 	// Get the subsequence.
-	subsequence, _ := doc.Subseq(charPrev, charNext)
+
+	// panic happens when charPrev > charNext
+	subsequence, err := doc.Subseq(charPrev, charNext)
+	if err != nil {
+		return doc, err
+	}
 
 	// Get the position of the next character.
 	position := doc.Position(charNext.ID)
