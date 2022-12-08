@@ -102,37 +102,26 @@ func main() {
 
 	// define log file paths, based on the home directory.
 	var logPath, debugLogPath string
+
+	// Get the home directory.
+	homeDirExists := true
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
+		homeDirExists = false
+	}
+
+	// Get log paths based on the home directory.
+	rowixDir := filepath.Join(homeDir, ".rowix")
+	if rowixDirExists(rowixDir) && homeDirExists {
+		logPath = filepath.Join(rowixDir, "rowix.log")
+		debugLogPath = filepath.Join(rowixDir, "rowix-debug.log")
+	} else {
 		logPath = "rowix.log"
 		debugLogPath = "rowix-debug.log"
-	} else {
-		rowixDir := filepath.Join(homeDir, ".rowix")
-		if _, err := os.Stat(rowixDir); err == nil {
-			logPath = filepath.Join(rowixDir, "rowix.log")
-			debugLogPath = filepath.Join(rowixDir, "rowix-debug.log")
-		} else if errors.Is(err, os.ErrNotExist) {
-			err = os.Mkdir(rowixDir, 0744)
-			if err != nil {
-				logPath = "rowix.log"
-				debugLogPath = "rowix-debug.log"
-			}
-			err = os.Chmod(rowixDir, 0744)
-			if err != nil {
-				logPath = "rowix.log"
-				debugLogPath = "rowix-debug.log"
-			}
-
-			logPath = filepath.Join(rowixDir, "rowix.log")
-			debugLogPath = filepath.Join(rowixDir, "rowix-debug.log")
-		} else {
-			logPath = "rowix.log"
-			debugLogPath = "rowix-debug.log"
-		}
 	}
 
 	// open the log file and create if it does not exist
-	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0744)
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return
@@ -145,7 +134,7 @@ func main() {
 	}()
 
 	// create a separate log file for verbose logs
-	debugLogFile, err := os.OpenFile(debugLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0744)
+	debugLogFile, err := os.OpenFile(debugLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return
@@ -411,4 +400,25 @@ func getMsgChan(conn *websocket.Conn) chan message {
 		}
 	}()
 	return messageChan
+}
+
+func rowixDirExists(rowixDir string) bool {
+	if _, err := os.Stat(rowixDir); err == nil {
+		return true
+	} else if errors.Is(err, os.ErrNotExist) {
+		err = os.Mkdir(rowixDir, 0744) // skipcq: GSC-G302
+		if err != nil {
+			return false
+		} else {
+			// skipcq: GSC-G302
+			if err = os.Chmod(rowixDir, 0744); err != nil {
+				return false
+			} else {
+
+				return true
+			}
+		}
+	} else {
+		return false
+	}
 }
