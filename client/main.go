@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -18,6 +19,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nsf/termbox-go"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/writer"
 )
 
 type message struct {
@@ -39,7 +42,7 @@ type Operation struct {
 var doc crdt.Document
 
 // Centralized logger.
-var logger *log.Logger
+var logger *logrus.Logger
 
 // WebSocket connection.
 var conn *websocket.Conn
@@ -93,23 +96,57 @@ func main() {
 	defer conn.Close()
 
 	// Send joining message.
-	msg := message{Username: name, Text: "has joined the session.", Type: "info"}
+	msg := message{Username: name, Text: "has joined the session.", Type: "join"}
 	_ = conn.WriteJSON(msg)
 
 	// open the log file and create if it does not exist
-	file, err := os.OpenFile("rowix.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	logFile, err := os.OpenFile("rowix.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return
 	}
 	defer func() {
-		err := file.Close()
+		err := logFile.Close()
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}()
 
-	logger = log.New(file, fmt.Sprintf("--- name: %s >> ", name), log.LstdFlags)
+	// create a separate log file for verbose logs
+	debugLogFile, err := os.OpenFile("rowix-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		fmt.Printf("Logger error, exiting: %s", err)
+		return
+	}
+	defer func() {
+		err := debugLogFile.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}()
+
+	// logger = log.New(logFile, fmt.Sprintf("--- name: %s >> ", name), log.LstdFlags)
+
+	logger = logrus.New()
+	logger.SetOutput(io.Discard)
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	logger.AddHook(&writer.Hook{
+		Writer: logFile,
+		LogLevels: []logrus.Level{
+			logrus.WarnLevel,
+			logrus.ErrorLevel,
+			logrus.FatalLevel,
+			logrus.PanicLevel,
+		},
+	})
+	logger.AddHook(&writer.Hook{
+		Writer: debugLogFile,
+		LogLevels: []logrus.Level{
+			logrus.TraceLevel,
+			logrus.DebugLevel,
+			logrus.InfoLevel,
+		},
+	})
 
 	err = UI(conn, &doc)
 	if err != nil {
@@ -121,8 +158,13 @@ func main() {
 		return
 	}
 
-	if err := file.Close(); err != nil {
+	if err := logFile.Close(); err != nil {
 		fmt.Printf("Failed to close log file: %s", err)
+		return
+	}
+
+	if err := debugLogFile.Close(); err != nil {
+		fmt.Printf("Failed to close debug log file: %s", err)
 		return
 	}
 
@@ -227,20 +269,18 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	// Modify local state (CRDT) first.
 	switch opType {
 	case OperationInsert:
-		logger.Printf("LOCAL INSERT: %s at cursor position %v\n", ch, e.Cursor)
+		logger.Infof("LOCAL INSERT: %s at cursor position %v\n", ch, e.Cursor)
 		r := []rune(ch)
 		e.AddRune(r[0])
-
 		text, err := doc.Insert(e.Cursor, ch)
 		if err != nil {
 			e.SetText(text)
-			logger.Printf("CRDT error: %v\n", err)
+			logger.Errorf("CRDT error: %v\n", err)
 		}
-
 		e.SetText(text)
 		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: e.Cursor, Value: ch}}
 	case OperationDelete:
-		logger.Printf("LOCAL DELETE:  cursor position %v\n", e.Cursor)
+		logger.Infof("LOCAL DELETE:  cursor position %v\n", e.Cursor)
 		if e.Cursor-1 <= 0 {
 			e.Cursor = 1
 		}
@@ -264,7 +304,7 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 func printDoc(doc crdt.Document) {
 	logger.Printf("---DOCUMENT STATE---")
 	for i, c := range doc.Characters {
-		logger.Printf("index: %v  value: %s  ID: %v  IDPrev: %v  IDNext: %v  ", i, c.Value, c.ID, c.IDPrevious, c.IDNext)
+		logger.Debugf("index: %v  value: %s  ID: %v  IDPrev: %v  IDNext: %v  ", i, c.Value, c.ID, c.IDPrevious, c.IDNext)
 	}
 }
 
@@ -282,21 +322,21 @@ func getTermboxChan() chan termbox.Event {
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
 	if msg.Type == "docResp" { // update local document
-		logger.Printf("DOCRESP RECEIVED, updating local doc%+v\n", msg.Document)
-		logger.Printf("MESSAGE DOC: %+v\n", msg.Document)
+		logger.Infof("DOCRESP RECEIVED, updating local doc%+v\n", msg.Document)
+		logger.Infof("MESSAGE DOC: %+v\n", msg.Document)
 		*doc = msg.Document
 	} else if msg.Type == "docReq" { // send local document as docResp message
-		logger.Printf("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
+		logger.Infof("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
 		docMsg := message{Type: "docResp", Document: *doc, ID: msg.ID}
 		_ = conn.WriteJSON(&docMsg)
 	} else if msg.Type == "SiteID" {
 		siteID, err := strconv.Atoi(msg.Text)
 		if err != nil {
-			logger.Printf("failed to set siteID, err: %v\n", err)
+			logger.Errorf("failed to set siteID, err: %v\n", err)
 		}
 		crdt.SiteID = siteID
-		logger.Printf("SITE ID %v, INTENDED SITE ID: %v", crdt.SiteID, siteID)
-	} else if msg.Type == "info" {
+		logger.Infof("SITE ID %v, INTENDED SITE ID: %v", crdt.SiteID, siteID)
+	} else if msg.Type == "join" {
 		e.StatusMsg = fmt.Sprintf("%s has joined the session!", msg.Username)
 		e.SetStatusBar()
 	} else {
@@ -304,12 +344,12 @@ func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
 		case "insert":
 			_, err := doc.Insert(msg.Operation.Position, msg.Operation.Value)
 			if err != nil {
-				logger.Printf("failed to insert, err: %v\n", err)
+				logger.Errorf("failed to insert, err: %v\n", err)
 			}
-			logger.Printf("REMOTE INSERT: %s at position %v\n", msg.Operation.Value, msg.Operation.Position)
+			logger.Infof("REMOTE INSERT: %s at position %v\n", msg.Operation.Value, msg.Operation.Position)
 		case "delete":
 			_ = doc.Delete(msg.Operation.Position)
-			logger.Printf("REMOTE DELETE: position %v\n", msg.Operation.Position)
+			logger.Infof("REMOTE DELETE: position %v\n", msg.Operation.Position)
 		}
 	}
 	printDoc(*doc)
@@ -328,12 +368,12 @@ func getMsgChan(conn *websocket.Conn) chan message {
 			err := conn.ReadJSON(&msg)
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					logger.Printf("websocket error: %v", err)
+					logger.Errorf("websocket error: %v", err)
 				}
 				break
 			}
 
-			logger.Printf("message received: %+v\n", msg)
+			logger.Infof("message received: %+v\n", msg)
 
 			// send message through channel
 			messageChan <- msg
