@@ -121,7 +121,7 @@ func main() {
 	}
 
 	// open the log file and create if it does not exist
-	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // skipcq: GSC-G302
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return
@@ -134,7 +134,7 @@ func main() {
 	}()
 
 	// create a separate log file for verbose logs
-	debugLogFile, err := os.OpenFile(debugLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	debugLogFile, err := os.OpenFile(debugLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // skipcq: GSC-G302
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return
