@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -99,8 +100,28 @@ func main() {
 	msg := message{Username: name, Text: "has joined the session.", Type: "join"}
 	_ = conn.WriteJSON(msg)
 
+	// define log file paths, based on the home directory.
+	var logPath, debugLogPath string
+
+	// Get the home directory.
+	homeDirExists := true
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		homeDirExists = false
+	}
+
+	// Get log paths based on the home directory.
+	rowixDir := filepath.Join(homeDir, ".rowix")
+	if rowixDirExists(rowixDir) && homeDirExists {
+		logPath = filepath.Join(rowixDir, "rowix.log")
+		debugLogPath = filepath.Join(rowixDir, "rowix-debug.log")
+	} else {
+		logPath = "rowix.log"
+		debugLogPath = "rowix-debug.log"
+	}
+
 	// open the log file and create if it does not exist
-	logFile, err := os.OpenFile("rowix.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // skipcq: GSC-G302
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return
@@ -113,7 +134,7 @@ func main() {
 	}()
 
 	// create a separate log file for verbose logs
-	debugLogFile, err := os.OpenFile("rowix-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	debugLogFile, err := os.OpenFile(debugLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // skipcq: GSC-G302
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return
@@ -300,9 +321,9 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 
 // printDoc "prints" the document state to the logs.
 func printDoc(doc crdt.Document) {
-	logger.Printf("---DOCUMENT STATE---")
+	logger.Infof("---DOCUMENT STATE---")
 	for i, c := range doc.Characters {
-		logger.Debugf("index: %v  value: %s  ID: %v  IDPrev: %v  IDNext: %v  ", i, c.Value, c.ID, c.IDPrevious, c.IDNext)
+		logger.Infof("index: %v  value: %s  ID: %v  IDPrev: %v  IDNext: %v  ", i, c.Value, c.ID, c.IDPrevious, c.IDNext)
 	}
 }
 
@@ -379,4 +400,25 @@ func getMsgChan(conn *websocket.Conn) chan message {
 		}
 	}()
 	return messageChan
+}
+
+func rowixDirExists(rowixDir string) bool {
+	if _, err := os.Stat(rowixDir); err == nil {
+		return true
+	} else if errors.Is(err, os.ErrNotExist) {
+		err = os.Mkdir(rowixDir, 0744) // skipcq: GSC-G302
+		if err != nil {
+			return false
+		} else {
+			// skipcq: GSC-G302
+			if err = os.Chmod(rowixDir, 0744); err != nil {
+				return false
+			} else {
+
+				return true
+			}
+		}
+	} else {
+		return false
+	}
 }
