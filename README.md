@@ -1,8 +1,26 @@
+![rowix banner](.github/assets/rowix.png)
+
 # rowix
 
 A collaborative text editor written in Go.
 
 ## Usage
+
+The easiest way to get started is to download `rowix` from the [releases](https://github.com/burntcarrot/rowix/releases).
+
+```
+Usage of rowix:
+  -login
+        Enable the login prompt
+  -path string
+        Server path (default "/")
+  -server string
+        Server network address (default "localhost:8080")
+  -wss
+        Enable a secure WebSocket connection
+```
+
+### Local setup
 
 To start the server:
 
@@ -13,7 +31,7 @@ go run server/main.go
 To start the client:
 
 ```
-go run client/*.go
+go run client/main.go
 ```
 
 (spin up at least 2 clients - it's a collaborative editor! Also works with a single client.)
@@ -33,4 +51,12 @@ Here's a basic explanation:
   - Rendering document contents
   - Handling key events
   - Generating payload on key presses
-  - Dispatch generated payload to the server
+  - Dispatching generated payload to the server
+
+## License
+
+`rowix` is licensed under the [MIT license](LICENSE).
+
+## Future plans
+
+Text editors is a huge space - there's lots of improvements to be made!

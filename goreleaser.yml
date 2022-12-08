@@ -1,0 +1,31 @@
+project_name: rowix
+
+builds:
+  - id: "rowix-server"
+    main: ./server/main.go
+    binary: rowix-server
+    goos:
+      - linux
+      - darwin
+      - windows
+      - openbsd
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    env:
+    - CGO_ENABLED=0
+  - id: "rowix-client"
+    main: ./client/main.go
+    binary: rowix
+    goos:
+      - linux
+      - darwin
+      - windows
+      - openbsd
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    env:
+    - CGO_ENABLED=0
