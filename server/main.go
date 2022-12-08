@@ -152,7 +152,7 @@ func handleMsg() {
 
 		// Log each message to stdout.
 		t := time.Now().Format(time.ANSIC)
-		if msg.Type == "info" {
+		if msg.Type == "join" {
 			// Set the username received from the client to the clientInfo present in activeClients.
 			clientInfo := activeClients[msg.ID]
 			clientInfo.Username = msg.Username
@@ -186,7 +186,7 @@ func handleSync() {
 	for {
 		// Receive document response.
 		docRespMsg := <-docChan
-		color.Cyan("got docRespMsg: %+v", docRespMsg)
+		color.Cyan("got docRespMsg, len(document) = %d\n", len(docRespMsg.Document.Characters))
 
 		for UUID, clientInfo := range activeClients {
 			if UUID != docRespMsg.ID {
