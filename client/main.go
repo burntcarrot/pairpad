@@ -191,6 +191,10 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		case termbox.KeyDelete:
 			performOperation(OperationDelete, ev, conn)
 		case termbox.KeyTab:
+			for i := 0; i < 4; i++ {
+				ev.Ch = ' '
+				performOperation(OperationInsert, ev, conn)
+			}
 		case termbox.KeyEnter:
 			ev.Ch = '\n'
 			performOperation(OperationInsert, ev, conn)
