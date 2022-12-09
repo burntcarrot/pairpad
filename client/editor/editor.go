@@ -2,6 +2,8 @@ package editor
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/mattn/go-runewidth"
@@ -127,15 +129,28 @@ func (e *Editor) showPositions() {
 
 // MoveCursor updates the Cursor position.
 func (e *Editor) MoveCursor(x, y int) {
+	file, err := os.OpenFile("cursor.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		fmt.Printf("Logger error, exiting: %s", err)
+		return
+	}
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}()
+	logger := log.New(file, "---", log.LstdFlags)
+
 	newCursor := e.Cursor + x
 
 	// move cursor down y cells
 	if y > 0 {
-		// for i := 0; i <= y; i++ {
+		logger.Printf("DOWN ARROW PRESSED")
 		n1 := 0 // index of next newline character
 		n2 := 0 // index of the newline character after n1
 
-		// note the position of the next two newline characters
+		// store the position of the next two newline characters
 		for j := e.Cursor; j < len(e.Text); j++ {
 			if e.Text[j] == '\n' {
 				if n1 != 0 { // if the next newline character has already been found
@@ -145,38 +160,43 @@ func (e *Editor) MoveCursor(x, y int) {
 				n1 = j
 			}
 		}
-		newCursor := n2
+		newCursor = n2
+		logger.Printf("the next two new line characters are at %v and %v\n.", n1, n2)
 		for k := 0; k < n1-e.Cursor; k++ {
 			if newCursor == n1 {
 				break
 			}
 			newCursor--
 		}
-		// }
+		logger.Printf("After calc, newCursor is at: %v", newCursor)
 	}
+
 	// move cursor up y cells
 	if y < 0 {
-		// for i := 0; i >= y; i-- {
+		logger.Printf("UP ARROW PRESSED")
 		n1 := 0 // index of previous newline character
 		n2 := 0 // index of the newline character before n1
-		// note the position of the previous two newline characters
+		// store the position of the previous two newline characters
 		for j := e.Cursor; j > 0; j-- {
 			if e.Text[j] == '\n' {
-				if n2 != 0 { // if the next newline character has already been found
-					n1 = j
+				if n1 != 0 || j == 0 { // if the previous newline character has already been found
+					n2 = j
+					logger.Printf("this code is getting reached! n2 = %v\n", n2)
 					break
 				}
-				n2 = j
+				n1 = j
+
 			}
 		}
-		newCursor := n1
-		for k := 0; k < n1-e.Cursor; k++ {
+		newCursor = n2
+		logger.Printf("the previous two new line characters are at %v and %v\n.", n1, n2)
+		for k := 0; k < e.Cursor-n1; k++ {
 			if newCursor == n1 {
 				break
 			}
 			newCursor++
 		}
-		// }
+		logger.Printf("After calc, newCursor is at: %v", newCursor)
 	}
 
 	if newCursor < 0 {
@@ -185,7 +205,9 @@ func (e *Editor) MoveCursor(x, y int) {
 	if newCursor > len(e.Text) {
 		newCursor = len(e.Text)
 	}
+
 	e.Cursor = newCursor
+
 }
 
 // calcCursorXY calculates Cursor position from the index obtained from the content.
