@@ -147,19 +147,28 @@ func (e *Editor) MoveCursor(x, y int) {
 	// move cursor down y cells
 	if y > 0 {
 		logger.Printf("DOWN ARROW PRESSED")
-		n1 := 0 // index of next newline character
-		n2 := 0 // index of the newline character after n1
+		n1 := -1 // index of next newline character
+		n2 := -1 // index of the newline character after n1
 
 		// store the position of the next two newline characters
 		for j := e.Cursor; j < len(e.Text); j++ {
 			if e.Text[j] == '\n' {
-				if n1 != 0 { // if the next newline character has already been found
+				if n1 > 0 { // if the next newline character has already been found
 					n2 = j
 					break
 				}
 				n1 = j
 			}
 		}
+		if n1 < 0 && n2 < 0 {
+			logger.Printf("couldn't find next newline, setting e.Cursor to end of text\n")
+			e.Cursor = len(e.Text)
+			return
+		}
+		if n2 < 0 {
+			n2 = len(e.Text)
+		}
+
 		newCursor = n2
 		logger.Printf("the next two new line characters are at %v and %v\n.", n1, n2)
 		for k := 0; k < n1-e.Cursor; k++ {
@@ -174,19 +183,26 @@ func (e *Editor) MoveCursor(x, y int) {
 	// move cursor up y cells
 	if y < 0 {
 		logger.Printf("UP ARROW PRESSED")
-		n1 := 0 // index of previous newline character
-		n2 := 0 // index of the newline character before n1
+		n1 := -1 // index of previous newline character
+		n2 := -1 // index of the newline character before n1
 		// store the position of the previous two newline characters
 		for j := e.Cursor; j > 0; j-- {
 			if e.Text[j] == '\n' {
-				if n1 != 0 || j == 0 { // if the previous newline character has already been found
+				if n1 > 0 { // if the previous newline character has already been found
 					n2 = j
 					logger.Printf("this code is getting reached! n2 = %v\n", n2)
 					break
 				}
 				n1 = j
-
 			}
+		}
+		if n1 < 0 && n2 < 0 {
+			logger.Printf("couldn't find previous newline, setting e.Cursor to 0\n")
+			e.Cursor = 0
+			return
+		}
+		if n2 < 0 {
+			n2 = 0
 		}
 		newCursor = n2
 		logger.Printf("the previous two new line characters are at %v and %v\n.", n1, n2)
