@@ -147,10 +147,11 @@ func (e *Editor) MoveCursor(x, y int) {
 	// move cursor down y cells
 	if y > 0 {
 		logger.Printf("DOWN ARROW PRESSED")
-		cls := -1   // index of the newline character marking the start of the current line
-		cle := -1   // index of the newline character marking the end of the current line
-		nle := -1   // index of the newline character marking the end of the next line
-		offset := 0 // current offset of cursor from beginning of line
+		cls := -1 // index of the newline character marking the start of the current line
+		cle := -1 // index of the newline character marking the end of the current line
+		nle := -1 // index of the newline character marking the end of the next line
+		// offset = e.Cursor - cls
+		offset := 1 // current offset of cursor from beginning of line
 
 		if newCursor > len(e.Text)-1 {
 			logger.Printf("cursor out of bounds! cursor reset at %v", len(e.Text))
@@ -160,7 +161,6 @@ func (e *Editor) MoveCursor(x, y int) {
 		if e.Text[newCursor] == '\n' {
 			logger.Printf("cursor on new line, moving to prev char")
 			newCursor--
-			offset++
 		}
 
 		// find offset from start of line and set cls to start of line
@@ -170,17 +170,17 @@ func (e *Editor) MoveCursor(x, y int) {
 				cls = i
 				break
 			}
-			offset++
-			logger.Printf("offset at %v, char %v", offset, e.Text[i])
 		}
-		logger.Printf("offset: %v", offset)
 		// if start of current line isn't set, assume current line is the first line of the document,
 		// so the start of the current line is at position 0
 		if cls < 0 {
 			logger.Printf("on first line")
-			offset++
-			cls = 0
+			offset = e.Cursor + 1
+		} else {
+			offset = e.Cursor - cls
 		}
+
+		logger.Printf("offset: %v", offset)
 
 		// cle is used to find length of current line (cle - cls)
 		for i := cls + 1; i < len(e.Text); i++ {
@@ -214,7 +214,7 @@ func (e *Editor) MoveCursor(x, y int) {
 			// 	newCursor = nle
 			// } else {
 		} else if nle-cle < offset { // if next line is shorter than the offset
-			logger.Printf("next line is shorter")
+			logger.Printf("next line is shorter, moving to end of next line")
 			newCursor = nle
 		} else {
 			newCursor = cle + offset
