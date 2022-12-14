@@ -51,12 +51,16 @@ var conn *websocket.Conn
 // termbox-based editor.
 var e *editor.Editor
 
+// name of file to load from and save to
+var fileName string
+
 func main() {
 	// Parse flags.
 	server := flag.String("server", "localhost:8080", "Server network address")
 	path := flag.String("path", "/", "Server path")
 	secure := flag.Bool("wss", false, "Enable a secure WebSocket connection")
 	login := flag.Bool("login", false, "Enable the login prompt")
+	file := flag.Bool("file", false, "Choose a file to load")
 	flag.Parse()
 
 	// Construct WebSocket URL.
@@ -80,15 +84,13 @@ func main() {
 		name = randomdata.SillyName()
 	}
 
-	// Initialize document.
-	doc = crdt.New()
-
 	// Get WebSocket connection.
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 2 * time.Minute,
 	}
 
 	var err error
+
 	conn, _, err = dialer.Dial(u.String(), nil)
 	if err != nil {
 		fmt.Printf("Connection error, exiting: %s\n", err)
@@ -167,6 +169,19 @@ func main() {
 		},
 	})
 
+	// Initialize document.
+	doc = crdt.New()
+	// load the file
+	if *file {
+		fmt.Print("Enter the name of a file to load and save to: ")
+		s = bufio.NewScanner(os.Stdin)
+		s.Scan()
+		fileName = s.Text()
+		if doc, err = crdt.Load(fileName); err != nil {
+			fmt.Printf("failed to load document: %s\n", err)
+		}
+	}
+
 	err = UI(conn, &doc)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "rowix") {
@@ -239,6 +254,10 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		switch ev.Key {
 		case termbox.KeyEsc, termbox.KeyCtrlC:
 			return errors.New("rowix: exiting")
+		case termbox.KeyCtrlS:
+			crdt.Save(fileName, &doc)
+			e.StatusMsg = "Saved document to " + fileName
+			e.SetStatusBar()
 		case termbox.KeyArrowLeft, termbox.KeyCtrlB:
 			e.MoveCursor(-1, 0)
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:

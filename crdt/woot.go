@@ -3,6 +3,9 @@ package crdt
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"strings"
 )
 
 // Document is composed of characters.
@@ -41,6 +44,33 @@ var (
 // New returns a initialized document.
 func New() Document {
 	return Document{Characters: []Character{CharacterStart, CharacterEnd}}
+}
+
+// Load reads a text file from disk and converts it into a CRDT document.
+func Load(fileName string) (Document, error) {
+	doc := New()
+	b, err := os.ReadFile(fileName)
+	if err != nil {
+		return doc, err
+	}
+	lines := strings.Split(string(b), "\n")
+	pos := 1
+	for i := 0; i < len(lines); i++ {
+		for j := 0; j < len(lines[i]); j++ {
+			doc.Insert(pos, string(lines[i][j]))
+			pos++
+		}
+		if i < len(lines)-1 {
+			doc.Insert(pos, "\n")
+			pos++
+		}
+	}
+	return doc, err
+}
+
+// Save writes data to the named file, creating it if necessary. The contents of the file are overwritten
+func Save(fileName string, doc *Document) {
+	os.WriteFile(fileName, []byte(Content(*doc)), fs.FileMode(os.O_RDWR))
 }
 
 //////////////////////
