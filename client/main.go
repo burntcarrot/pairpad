@@ -182,7 +182,7 @@ func main() {
 		}
 	}
 
-	err = UI(conn, &doc)
+	err = UI(conn)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "rowix") {
 			fmt.Println("exiting session.")
@@ -209,7 +209,7 @@ func main() {
 }
 
 // UI creates a new editor view and runs the main loop.
-func UI(conn *websocket.Conn, d *crdt.Document) error {
+func UI(conn *websocket.Conn) error {
 	err := termbox.Init()
 	if err != nil {
 		return err
@@ -220,7 +220,7 @@ func UI(conn *websocket.Conn, d *crdt.Document) error {
 	e.SetSize(termbox.Size())
 	e.Draw()
 
-	err = mainLoop(conn, d)
+	err = mainLoop(conn)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func UI(conn *websocket.Conn, d *crdt.Document) error {
 }
 
 // mainLoop is the main update loop for the UI.
-func mainLoop(conn *websocket.Conn, doc *crdt.Document) error {
+func mainLoop(conn *websocket.Conn) error {
 	termboxChan := getTermboxChan()
 	msgChan := getMsgChan(conn)
 
@@ -241,9 +241,8 @@ func mainLoop(conn *websocket.Conn, doc *crdt.Document) error {
 			if err != nil {
 				return err
 			}
-
 		case msg := <-msgChan:
-			handleMsg(msg, doc, conn)
+			handleMsg(msg, conn)
 		}
 	}
 }
@@ -258,6 +257,19 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			crdt.Save(fileName, &doc)
 			e.StatusMsg = "Saved document to " + fileName
 			e.SetStatusBar()
+		case termbox.KeyCtrlL:
+			newDoc, err := crdt.Load(fileName)
+			e.StatusMsg = "Loading " + fileName
+			e.SetStatusBar()
+			if err != nil {
+				e.StatusMsg = "Failed to load " + fileName
+				logrus.Error("failed to load file %s", fileName)
+			}
+			doc = newDoc
+			e.SetX(0)
+			e.SetText(crdt.Content(doc))
+			logger.Log(logrus.InfoLevel, "LOADING DOCUMENT")
+			// printDoc(*doc)
 		case termbox.KeyArrowLeft, termbox.KeyCtrlB:
 			e.MoveCursor(-1, 0)
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:
@@ -358,14 +370,14 @@ func getTermboxChan() chan termbox.Event {
 }
 
 // handleMsg updates the CRDT document with the contents of the message.
-func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
+func handleMsg(msg message, conn *websocket.Conn) {
 	if msg.Type == "docResp" { // update local document
 		logger.Infof("DOCRESP RECEIVED, updating local doc%+v\n", msg.Document)
 		logger.Infof("MESSAGE DOC: %+v\n", msg.Document)
-		*doc = msg.Document
+		doc = msg.Document
 	} else if msg.Type == "docReq" { // send local document as docResp message
 		logger.Infof("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
-		docMsg := message{Type: "docResp", Document: *doc, ID: msg.ID}
+		docMsg := message{Type: "docResp", Document: doc, ID: msg.ID}
 		_ = conn.WriteJSON(&docMsg)
 	} else if msg.Type == "SiteID" {
 		siteID, err := strconv.Atoi(msg.Text)
@@ -390,8 +402,8 @@ func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
 			logger.Infof("REMOTE DELETE: position %v\n", msg.Operation.Position)
 		}
 	}
-	printDoc(*doc)
-	e.SetText(crdt.Content(*doc))
+	printDoc(doc)
+	e.SetText(crdt.Content(doc))
 	e.Draw()
 }
 

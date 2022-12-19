@@ -41,7 +41,7 @@ var (
 	ErrBoundsNotPresent    = errors.New("subsequence bound(s) not present")
 )
 
-// New returns a initialized document.
+// New returns an initialized document.
 func New() Document {
 	return Document{Characters: []Character{CharacterStart, CharacterEnd}}
 }
