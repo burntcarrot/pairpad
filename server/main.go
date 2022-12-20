@@ -44,7 +44,7 @@ var activeClients = make(map[uuid.UUID]clientInfo)
 var messageChan = make(chan message)
 
 // Channel for document sync messages.
-var docChan = make(chan message)
+var syncChan = make(chan message)
 
 func main() {
 	// Parse flags.
@@ -89,7 +89,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 
 	// Generate the UUID and the site ID for the client.
 	clientID := uuid.New()
-	siteID := strconv.Itoa(len(activeClients))
+	siteID := strconv.Itoa(len(activeClients)) //TODO: change siteIDs to be a monotonically increasing global variable
 
 	// Add the client to the map of active clients.
 	c := clientInfo{Conn: conn, SiteID: siteID}
@@ -133,9 +133,9 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		// Set message ID
 		msg.ID = clientID
 
-		// Send docResp to handleSync function
-		if msg.Type == "docResp" {
-			docChan <- msg
+		// Send docSync to handleSync function
+		if msg.Type == "docSync" {
+			syncChan <- msg
 			continue
 		}
 
@@ -185,13 +185,12 @@ func handleMsg() {
 func handleSync() {
 	for {
 		// Receive document response.
-		docRespMsg := <-docChan
-		color.Cyan("got docRespMsg, len(document) = %d\n", len(docRespMsg.Document.Characters))
-
+		syncMsg := <-syncChan
+		color.Cyan("got syncMsg, len(document) = %d\n", len(syncMsg.Document.Characters))
 		for UUID, clientInfo := range activeClients {
-			if UUID != docRespMsg.ID {
-				color.Cyan("sending docResp to %s", docRespMsg.ID)
-				_ = clientInfo.Conn.WriteJSON(docRespMsg)
+			if UUID != syncMsg.ID {
+				color.Cyan("sending syncMsg to %s", syncMsg.ID)
+				_ = clientInfo.Conn.WriteJSON(syncMsg)
 			}
 		}
 	}

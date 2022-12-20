@@ -254,22 +254,35 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		case termbox.KeyEsc, termbox.KeyCtrlC:
 			return errors.New("rowix: exiting")
 		case termbox.KeyCtrlS:
-			crdt.Save(fileName, &doc)
-			e.StatusMsg = "Saved document to " + fileName
-			e.SetStatusBar()
-		case termbox.KeyCtrlL:
-			newDoc, err := crdt.Load(fileName)
-			e.StatusMsg = "Loading " + fileName
-			e.SetStatusBar()
-			if err != nil {
-				e.StatusMsg = "Failed to load " + fileName
-				logrus.Error("failed to load file %s", fileName)
+			if fileName != "" {
+				crdt.Save(fileName, &doc)
+				e.StatusMsg = "Saved document to " + fileName
+				e.SetStatusBar()
+			} else {
+				e.StatusMsg = "No file to save to!"
+				e.SetStatusBar()
 			}
-			doc = newDoc
-			e.SetX(0)
-			e.SetText(crdt.Content(doc))
-			logger.Log(logrus.InfoLevel, "LOADING DOCUMENT")
-			// printDoc(*doc)
+		case termbox.KeyCtrlL:
+			if fileName != "" {
+				logger.Log(logrus.InfoLevel, "LOADING DOCUMENT")
+				newDoc, err := crdt.Load(fileName)
+				e.StatusMsg = "Loading " + fileName
+				e.SetStatusBar()
+				if err != nil {
+					e.StatusMsg = "Failed to load " + fileName
+					logrus.Error("failed to load file %s", fileName)
+				}
+				doc = newDoc
+				e.SetX(0)
+				e.SetText(crdt.Content(doc))
+
+				logger.Log(logrus.InfoLevel, "SENDING DOCUMENT")
+				docMsg := message{Type: "docSync", Document: doc}
+				_ = conn.WriteJSON(&docMsg)
+			} else {
+				e.StatusMsg = "No file to load!"
+				e.SetStatusBar()
+			}
 		case termbox.KeyArrowLeft, termbox.KeyCtrlB:
 			e.MoveCursor(-1, 0)
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:
@@ -371,13 +384,12 @@ func getTermboxChan() chan termbox.Event {
 
 // handleMsg updates the CRDT document with the contents of the message.
 func handleMsg(msg message, conn *websocket.Conn) {
-	if msg.Type == "docResp" { // update local document
-		logger.Infof("DOCRESP RECEIVED, updating local doc%+v\n", msg.Document)
-		logger.Infof("MESSAGE DOC: %+v\n", msg.Document)
+	if msg.Type == "docSync" { // update local document
+		logger.Infof("DOCSYNC RECEIVED, updating local doc%+v\n", msg.Document)
 		doc = msg.Document
 	} else if msg.Type == "docReq" { // send local document as docResp message
 		logger.Infof("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
-		docMsg := message{Type: "docResp", Document: doc, ID: msg.ID}
+		docMsg := message{Type: "docSync", Document: doc, ID: msg.ID}
 		_ = conn.WriteJSON(&docMsg)
 	} else if msg.Type == "SiteID" {
 		siteID, err := strconv.Atoi(msg.Text)
