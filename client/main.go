@@ -255,7 +255,13 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			return errors.New("rowix: exiting")
 		case termbox.KeyCtrlS:
 			if fileName != "" {
-				crdt.Save(fileName, &doc)
+				err := crdt.Save(fileName, &doc)
+				if err != nil {
+					e.StatusMsg = "Failed to save to " + fileName
+					logrus.Errorf("failed to save to file %s", fileName)
+					e.SetStatusBar()
+					return err
+				}
 				e.StatusMsg = "Saved document to " + fileName
 				e.SetStatusBar()
 			} else {
@@ -271,6 +277,8 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 				if err != nil {
 					e.StatusMsg = "Failed to load " + fileName
 					logrus.Errorf("failed to load file %s", fileName)
+					e.SetStatusBar()
+					return err
 				}
 				doc = newDoc
 				e.SetX(0)

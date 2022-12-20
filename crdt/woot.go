@@ -57,11 +57,17 @@ func Load(fileName string) (Document, error) {
 	pos := 1
 	for i := 0; i < len(lines); i++ {
 		for j := 0; j < len(lines[i]); j++ {
-			doc.Insert(pos, string(lines[i][j]))
+			_, err := doc.Insert(pos, string(lines[i][j]))
+			if err != nil {
+				return doc, err
+			}
 			pos++
 		}
 		if i < len(lines)-1 {
-			doc.Insert(pos, "\n")
+			_, err := doc.Insert(pos, "\n")
+			if err != nil {
+				return doc, err
+			}
 			pos++
 		}
 	}
@@ -69,8 +75,8 @@ func Load(fileName string) (Document, error) {
 }
 
 // Save writes data to the named file, creating it if necessary. The contents of the file are overwritten
-func Save(fileName string, doc *Document) {
-	os.WriteFile(fileName, []byte(Content(*doc)), fs.FileMode(os.O_RDWR))
+func Save(fileName string, doc *Document) error {
+	return os.WriteFile(fileName, []byte(Content(*doc)), fs.FileMode(os.O_RDWR))
 }
 
 //////////////////////
