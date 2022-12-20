@@ -270,7 +270,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 				e.SetStatusBar()
 				if err != nil {
 					e.StatusMsg = "Failed to load " + fileName
-					logrus.Error("failed to load file %s", fileName)
+					logrus.Errorf("failed to load file %s", fileName)
 				}
 				doc = newDoc
 				e.SetX(0)
