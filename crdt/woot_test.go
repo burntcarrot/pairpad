@@ -1,6 +1,7 @@
 package crdt
 
 import (
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -132,6 +133,48 @@ func TestIntegrateInsert_BetweenTwoPositions(t *testing.T) {
 	want := wantDoc
 
 	// Do equality check using go-cmp, and display human-readable diff.
+	if !cmp.Equal(got, want) {
+		t.Errorf("got != want; diff = %v\n", cmp.Diff(got, want))
+	}
+}
+
+func TestLoad(t *testing.T) {
+	// create test doc
+	doc := &Document{
+		Characters: []Character{
+			{ID: "start", Visible: false, Value: "", IDPrevious: "", IDNext: "1"},
+			{ID: "1", Visible: true, Value: "c", IDPrevious: "start", IDNext: "3"},
+			{ID: "3", Visible: true, Value: "a", IDPrevious: "1", IDNext: "2"},
+			{ID: "2", Visible: true, Value: "t", IDPrevious: "3", IDNext: "4"},
+			{ID: "4", Visible: true, Value: "\n", IDPrevious: "2", IDNext: "5"},
+			{ID: "5", Visible: true, Value: "d", IDPrevious: "4", IDNext: "6"},
+			{ID: "6", Visible: true, Value: "o", IDPrevious: "5", IDNext: "7"},
+			{ID: "7", Visible: true, Value: "g", IDPrevious: "6", IDNext: "end"},
+			{ID: "end", Visible: false, Value: "", IDPrevious: "7", IDNext: ""},
+		},
+	}
+
+	tmp, err := os.CreateTemp("", "ex")
+	if err != nil {
+		t.Errorf("error: %v\n", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	// Save to a temporary file
+	err = Save(tmp.Name(), doc)
+	if err != nil {
+		t.Fatalf("error: %v\n", err)
+	}
+
+	// Load from the temporary file
+	loadedDoc, err := Load(tmp.Name())
+	if err != nil {
+		t.Fatalf("error: %v\n", err)
+	}
+	// compare the contents of the loaded doc and the original doc
+	got := Content(loadedDoc)
+	want := Content(*doc)
+
 	if !cmp.Equal(got, want) {
 		t.Errorf("got != want; diff = %v\n", cmp.Diff(got, want))
 	}

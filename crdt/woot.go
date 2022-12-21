@@ -49,11 +49,11 @@ func New() Document {
 // Load reads a text file from disk and converts it into a CRDT document.
 func Load(fileName string) (Document, error) {
 	doc := New()
-	b, err := os.ReadFile(fileName)
+	content, err := os.ReadFile(fileName)
 	if err != nil {
 		return doc, err
 	}
-	lines := strings.Split(string(b), "\n")
+	lines := strings.Split(string(content), "\n")
 	pos := 1
 	for i := 0; i < len(lines); i++ {
 		for j := 0; j < len(lines[i]); j++ {
@@ -63,7 +63,7 @@ func Load(fileName string) (Document, error) {
 			}
 			pos++
 		}
-		if i < len(lines)-1 {
+		if i < len(lines)-1 { // avoids insertion of '\n' on last line
 			_, err := doc.Insert(pos, "\n")
 			if err != nil {
 				return doc, err
