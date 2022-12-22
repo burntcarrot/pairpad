@@ -150,32 +150,32 @@ func (e *Editor) MoveCursor(x, y int) {
 		cls, cle, nle := -1, -1, -1
 		offset := 1 // current offset of cursor from beginning of line
 
-		//TODO: check if the below is necessary for avoiding bugs
+		// reset cursor if out of bounds
 		if newCursor > len(e.Text)-1 {
 			newCursor = len(e.Text) - 1
 		}
 
-		// if cursor is currently on newline, 'move' it
-		// if e.Text[newCursor] == '\n' {
-		// 	newCursor--
-		// }
+		// if cursor is currently on newline, "move" it
+		if e.Text[newCursor] == '\n' {
+			newCursor--
+		}
 
-		// find offset from start of line and set cls to start of line
+		// find the start of the line the cursor is currently on
 		for i := newCursor; i > 0; i-- {
 			if e.Text[i] == '\n' {
 				cls = i
 				break
 			}
 		}
-		// if start of current line isn't set, assume current line is the first line of the document,
-		// and manually set the offset
+
+		// set the cursor offset from the start of the current line
 		if cls < 0 {
 			offset = e.Cursor + 1
 		} else {
 			offset = e.Cursor - cls
 		}
-		logger.Printf("offset: %v", offset)
-		// cle is used to find length of current line (cle - cls)
+
+		// find the end of the current line
 		for i := cls + 1; i < len(e.Text); i++ {
 			if e.Text[i] == '\n' {
 				cle = i
@@ -183,8 +183,8 @@ func (e *Editor) MoveCursor(x, y int) {
 			}
 		}
 
-		// nle is used to find length of next line (nle - cle)
-		if cle > 0 { // if the end of the current line isn't set, no need to find nle
+		// find the end of the next line
+		if cle > 0 { // if the end of the current line isn't set, no need to find next line end
 			for i := cle + 1; i < len(e.Text); i++ {
 				if e.Text[i] == '\n' {
 					nle = i
@@ -192,14 +192,14 @@ func (e *Editor) MoveCursor(x, y int) {
 				}
 			}
 		}
-		// if end of next line isn't set, assume next line is last of the document
+		// if end of next line isn't found, assume next line is last of the document and set cursor to end
 		if nle < 0 {
 			nle = len(e.Text)
 		}
 		logger.Printf("Current line starts at %v. Current line ends at %v. Next line ends at %v\n", cls, cle, nle)
 		if cle < 0 {
 			newCursor = len(e.Text)
-		} else if nle-cle < offset { // if next line is shorter than the offset
+		} else if nle-cle < offset { // if next line is shorter than the offset, set cursor to end of next line
 			newCursor = nle
 		} else {
 			newCursor = cle + offset
@@ -209,22 +209,22 @@ func (e *Editor) MoveCursor(x, y int) {
 	// move cursor up y cells
 	if y < 0 {
 		logger.Printf("UP ARROW PRESSED")
-		pls, cls, cle := -1, -1, -1 // prev line start, curr line start, curr line end
-		offset := 1                 // current offset of cursor from beginning of line
+		pls, cls, cle := -1, -1, -1
+		offset := 1 // current offset of cursor from beginning of line
 
-		// below might be necessary
+		// reset cursor if out of bounds
 		if newCursor > len(e.Text)-1 {
 			logger.Printf("cursor out of bounds! cursor reset at %v", len(e.Text))
 			newCursor = len(e.Text) - 1
 		}
 
-		// if cursor is currently on newline, 'move' it
+		// if cursor is currently on newline, "move" it
 		if e.Text[newCursor] == '\n' {
 			logger.Printf("cursor on new line, moving to prev char")
 			newCursor--
 		}
 
-		//  set cls to start of line
+		// find the start of the line the cursor is currently on
 		for i := newCursor; i > 0; i-- {
 			if e.Text[i] == '\n' {
 				logger.Println("current line start found at ", i)
@@ -232,8 +232,7 @@ func (e *Editor) MoveCursor(x, y int) {
 				break
 			}
 		}
-		// if start of current line isn't set, assume current line is the first line of the document,
-		// and manually set the offset
+		// set the cursor offset from the start of the current line
 		if cls < 0 {
 			logger.Printf("on first line")
 			offset = e.Cursor + 1
@@ -241,9 +240,7 @@ func (e *Editor) MoveCursor(x, y int) {
 			offset = e.Cursor - cls
 		}
 
-		logger.Printf("offset: %v", offset)
-
-		// cle is used to find length of current line (cle - cls)
+		// find the end of the current line
 		for i := cls + 1; i < len(e.Text); i++ {
 			if e.Text[i] == '\n' {
 				logger.Println("current line end at ", i)
@@ -252,7 +249,7 @@ func (e *Editor) MoveCursor(x, y int) {
 			}
 		}
 
-		// pls is used to find length of previous line (cle - pls)
+		// find the start of the previous line
 		if cls > 0 { // only need to find pls if cls is set
 			for i := cls - 1; i > 0; i-- {
 				if e.Text[i] == '\n' {
@@ -262,7 +259,8 @@ func (e *Editor) MoveCursor(x, y int) {
 				}
 			}
 		}
-		// if start of previous line isn't set, assume previous line is start of document
+
+		// if start of previous line isn't found, assume previous line is first of the document and set cursor to end
 		if pls < 0 {
 			pls = 0
 			offset--
@@ -271,7 +269,7 @@ func (e *Editor) MoveCursor(x, y int) {
 
 		if cls < 0 {
 			newCursor = 0
-		} else if cls-pls < offset { // if next line is shorter than the offset
+		} else if cls-pls < offset { // if previous line is shorter than the offset
 			logger.Printf("previous line is shorter, moving to end of previous line")
 			newCursor = cls
 		} else {
