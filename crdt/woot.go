@@ -3,7 +3,6 @@ package crdt
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"strings"
 )
@@ -74,9 +73,9 @@ func Load(fileName string) (Document, error) {
 	return doc, err
 }
 
-// Save writes data to the named file, creating it if necessary. The contents of the file are overwritten
+// Save writes data to the named file, creating it if necessary. The contents of the file are overwritten.
 func Save(fileName string, doc *Document) error {
-	return os.WriteFile(fileName, []byte(Content(*doc)), fs.FileMode(os.O_RDWR))
+	return os.WriteFile(fileName, []byte(Content(*doc)), 0644)
 }
 
 //////////////////////

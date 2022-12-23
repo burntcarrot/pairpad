@@ -6,6 +6,24 @@ A collaborative text editor written in Go.
 
 ![Preview](.github/assets/demo.gif)
 
+## Features
+
+- Lightweight (~4MB)
+- Easy to setup (single binary, Docker/Fly setup available!)
+- Export/import document content! (see [keybindings](#keybindings))
+
+## Keybindings
+
+| Action         | Key |
+|--------------|:-----:|
+| Exit |  `Esc` |
+| Save to document (needs `-file` flag to supplied during startup) |  `Ctrl+S` |
+| Load from document (needs `-file` flag to supplied during startup) |  `Ctrl+L` |
+| Move cursor up/left |  `Left arrow key` |
+| Move cursor down/right |  `Right arrow key` |
+| Move cursor to start |  `Home` |
+| Move cursor to end|  `End` |
+
 ## Usage
 
 The easiest way to get started is to download `rowix` from the [releases](https://github.com/burntcarrot/rowix/releases).

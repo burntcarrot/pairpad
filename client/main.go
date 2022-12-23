@@ -51,7 +51,7 @@ var conn *websocket.Conn
 // termbox-based editor.
 var e *editor.Editor
 
-// name of file to load from and save to
+// The name of the file to load from and save to.
 var fileName string
 
 func main() {
@@ -465,7 +465,6 @@ func rowixDirExists(rowixDir string) bool {
 			if err = os.Chmod(rowixDir, 0744); err != nil {
 				return false
 			} else {
-
 				return true
 			}
 		}
