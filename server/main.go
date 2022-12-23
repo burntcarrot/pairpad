@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/burntcarrot/rowix/crdt"
@@ -33,6 +34,12 @@ type Operation struct {
 	Position int    `json:"position"`
 	Value    string `json:"value"`
 }
+
+// Monotonically increasing site ID.
+var siteID = 0
+
+// Mutex for protecting site ID increment operations.
+var mu sync.Mutex
 
 // Upgrader instance to upgrade all HTTP connections to a WebSocket.
 var upgrader = websocket.Upgrader{}
@@ -89,7 +96,13 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 
 	// Generate the UUID and the site ID for the client.
 	clientID := uuid.New()
-	siteID := strconv.Itoa(len(activeClients)) //TODO: change siteIDs to be a monotonically increasing global variable
+
+	// Carefully increment site ID with mutexes.
+	mu.Lock()
+	siteID++
+	mu.Unlock()
+
+	siteID := strconv.Itoa(siteID)
 
 	// Add the client to the map of active clients.
 	c := clientInfo{Conn: conn, SiteID: siteID}
