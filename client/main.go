@@ -51,12 +51,16 @@ var conn *websocket.Conn
 // termbox-based editor.
 var e *editor.Editor
 
+// The name of the file to load from and save to.
+var fileName string
+
 func main() {
 	// Parse flags.
 	server := flag.String("server", "localhost:8080", "Server network address")
 	path := flag.String("path", "/", "Server path")
 	secure := flag.Bool("wss", false, "Enable a secure WebSocket connection")
 	login := flag.Bool("login", false, "Enable the login prompt")
+	file := flag.Bool("file", false, "Choose a file to load")
 	flag.Parse()
 
 	// Construct WebSocket URL.
@@ -80,15 +84,13 @@ func main() {
 		name = randomdata.SillyName()
 	}
 
-	// Initialize document.
-	doc = crdt.New()
-
 	// Get WebSocket connection.
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 2 * time.Minute,
 	}
 
 	var err error
+
 	conn, _, err = dialer.Dial(u.String(), nil)
 	if err != nil {
 		fmt.Printf("Connection error, exiting: %s\n", err)
@@ -167,7 +169,20 @@ func main() {
 		},
 	})
 
-	err = UI(conn, &doc)
+	// Initialize document.
+	doc = crdt.New()
+	// load the file
+	if *file {
+		fmt.Print("Enter the name of a file to load and save to: ")
+		s = bufio.NewScanner(os.Stdin)
+		s.Scan()
+		fileName = s.Text()
+		if doc, err = crdt.Load(fileName); err != nil {
+			fmt.Printf("failed to load document: %s\n", err)
+		}
+	}
+
+	err = UI(conn)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "rowix") {
 			fmt.Println("exiting session.")
@@ -194,7 +209,7 @@ func main() {
 }
 
 // UI creates a new editor view and runs the main loop.
-func UI(conn *websocket.Conn, d *crdt.Document) error {
+func UI(conn *websocket.Conn) error {
 	err := termbox.Init()
 	if err != nil {
 		return err
@@ -205,7 +220,7 @@ func UI(conn *websocket.Conn, d *crdt.Document) error {
 	e.SetSize(termbox.Size())
 	e.Draw()
 
-	err = mainLoop(conn, d)
+	err = mainLoop(conn)
 	if err != nil {
 		return err
 	}
@@ -214,7 +229,7 @@ func UI(conn *websocket.Conn, d *crdt.Document) error {
 }
 
 // mainLoop is the main update loop for the UI.
-func mainLoop(conn *websocket.Conn, doc *crdt.Document) error {
+func mainLoop(conn *websocket.Conn) error {
 	termboxChan := getTermboxChan()
 	msgChan := getMsgChan(conn)
 
@@ -226,9 +241,8 @@ func mainLoop(conn *websocket.Conn, doc *crdt.Document) error {
 			if err != nil {
 				return err
 			}
-
 		case msg := <-msgChan:
-			handleMsg(msg, doc, conn)
+			handleMsg(msg, conn)
 		}
 	}
 }
@@ -239,6 +253,44 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		switch ev.Key {
 		case termbox.KeyEsc, termbox.KeyCtrlC:
 			return errors.New("rowix: exiting")
+		case termbox.KeyCtrlS:
+			if fileName != "" {
+				err := crdt.Save(fileName, &doc)
+				if err != nil {
+					e.StatusMsg = "Failed to save to " + fileName
+					logrus.Errorf("failed to save to file %s", fileName)
+					e.SetStatusBar()
+					return err
+				}
+				e.StatusMsg = "Saved document to " + fileName
+				e.SetStatusBar()
+			} else {
+				e.StatusMsg = "No file to save to!"
+				e.SetStatusBar()
+			}
+		case termbox.KeyCtrlL:
+			if fileName != "" {
+				logger.Log(logrus.InfoLevel, "LOADING DOCUMENT")
+				newDoc, err := crdt.Load(fileName)
+				e.StatusMsg = "Loading " + fileName
+				e.SetStatusBar()
+				if err != nil {
+					e.StatusMsg = "Failed to load " + fileName
+					logrus.Errorf("failed to load file %s", fileName)
+					e.SetStatusBar()
+					return err
+				}
+				doc = newDoc
+				e.SetX(0)
+				e.SetText(crdt.Content(doc))
+
+				logger.Log(logrus.InfoLevel, "SENDING DOCUMENT")
+				docMsg := message{Type: "docSync", Document: doc}
+				_ = conn.WriteJSON(&docMsg)
+			} else {
+				e.StatusMsg = "No file to load!"
+				e.SetStatusBar()
+			}
 		case termbox.KeyArrowLeft, termbox.KeyCtrlB:
 			e.MoveCursor(-1, 0)
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:
@@ -339,14 +391,13 @@ func getTermboxChan() chan termbox.Event {
 }
 
 // handleMsg updates the CRDT document with the contents of the message.
-func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
-	if msg.Type == "docResp" { // update local document
-		logger.Infof("DOCRESP RECEIVED, updating local doc%+v\n", msg.Document)
-		logger.Infof("MESSAGE DOC: %+v\n", msg.Document)
-		*doc = msg.Document
+func handleMsg(msg message, conn *websocket.Conn) {
+	if msg.Type == "docSync" { // update local document
+		logger.Infof("DOCSYNC RECEIVED, updating local doc%+v\n", msg.Document)
+		doc = msg.Document
 	} else if msg.Type == "docReq" { // send local document as docResp message
 		logger.Infof("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
-		docMsg := message{Type: "docResp", Document: *doc, ID: msg.ID}
+		docMsg := message{Type: "docSync", Document: doc, ID: msg.ID}
 		_ = conn.WriteJSON(&docMsg)
 	} else if msg.Type == "SiteID" {
 		siteID, err := strconv.Atoi(msg.Text)
@@ -371,8 +422,8 @@ func handleMsg(msg message, doc *crdt.Document, conn *websocket.Conn) {
 			logger.Infof("REMOTE DELETE: position %v\n", msg.Operation.Position)
 		}
 	}
-	printDoc(*doc)
-	e.SetText(crdt.Content(*doc))
+	printDoc(doc)
+	e.SetText(crdt.Content(doc))
 	e.Draw()
 }
 
@@ -414,7 +465,6 @@ func rowixDirExists(rowixDir string) bool {
 			if err = os.Chmod(rowixDir, 0744); err != nil {
 				return false
 			} else {
-
 				return true
 			}
 		}
