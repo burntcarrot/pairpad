@@ -2,8 +2,6 @@ package editor
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"time"
 
 	"github.com/mattn/go-runewidth"
@@ -129,24 +127,10 @@ func (e *Editor) showPositions() {
 
 // MoveCursor updates the Cursor position.
 func (e *Editor) MoveCursor(x, y int) {
-	file, err := os.OpenFile("cursor.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		fmt.Printf("Logger error, exiting: %s", err)
-		return
-	}
-	defer func() {
-		err := file.Close()
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}()
-	logger := log.New(file, "---", log.LstdFlags)
-
 	newCursor := e.Cursor + x
 
 	// move cursor down y cells
 	if y > 0 {
-		logger.Printf("DOWN ARROW PRESSED")
 		cls, cle, nle := -1, -1, -1
 		offset := 1 // current offset of cursor from beginning of line
 
@@ -196,7 +180,6 @@ func (e *Editor) MoveCursor(x, y int) {
 		if nle < 0 {
 			nle = len(e.Text)
 		}
-		logger.Printf("Current line starts at %v. Current line ends at %v. Next line ends at %v\n", cls, cle, nle)
 		if cle < 0 {
 			newCursor = len(e.Text)
 		} else if nle-cle < offset { // if next line is shorter than the offset, set cursor to end of next line
@@ -208,52 +191,45 @@ func (e *Editor) MoveCursor(x, y int) {
 
 	// move cursor up y cells
 	if y < 0 {
-		logger.Printf("UP ARROW PRESSED")
-		pls, cls, cle := -1, -1, -1
+		pls, cls := -1, -1
 		offset := 1 // current offset of cursor from beginning of line
 
 		// reset cursor if out of bounds
 		if newCursor > len(e.Text)-1 {
-			logger.Printf("cursor out of bounds! cursor reset at %v", len(e.Text))
 			newCursor = len(e.Text) - 1
 		}
 
 		// if cursor is currently on newline, "move" it
 		if e.Text[newCursor] == '\n' {
-			logger.Printf("cursor on new line, moving to prev char")
 			newCursor--
 		}
 
 		// find the start of the line the cursor is currently on
 		for i := newCursor; i > 0; i-- {
 			if e.Text[i] == '\n' {
-				logger.Println("current line start found at ", i)
 				cls = i
 				break
 			}
 		}
 		// set the cursor offset from the start of the current line
 		if cls < 0 {
-			logger.Printf("on first line")
 			offset = e.Cursor + 1
 		} else {
 			offset = e.Cursor - cls
 		}
 
 		// find the end of the current line
-		for i := cls + 1; i < len(e.Text); i++ {
-			if e.Text[i] == '\n' {
-				logger.Println("current line end at ", i)
-				cle = i
-				break
-			}
-		}
+		// for i := cls + 1; i < len(e.Text); i++ {
+		// 	if e.Text[i] == '\n' {
+		// 		cle = i
+		// 		break
+		// 	}
+		// }
 
 		// find the start of the previous line
 		if cls > 0 { // only need to find pls if cls is set
 			for i := cls - 1; i > 0; i-- {
 				if e.Text[i] == '\n' {
-					logger.Println("next line start at ", i)
 					pls = i
 					break
 				}
@@ -265,12 +241,10 @@ func (e *Editor) MoveCursor(x, y int) {
 			pls = 0
 			offset--
 		}
-		logger.Printf("Current line starts at %v. Current line ends at %v. Previous line starts at %v\n", cls, cle, pls)
 
 		if cls < 0 {
 			newCursor = 0
 		} else if cls-pls < offset { // if previous line is shorter than the offset
-			logger.Printf("previous line is shorter, moving to end of previous line")
 			newCursor = cls
 		} else {
 			newCursor = pls + offset
@@ -283,7 +257,6 @@ func (e *Editor) MoveCursor(x, y int) {
 	if newCursor < 0 {
 		newCursor = 0
 	}
-	logger.Println("cursor moved to ", newCursor)
 	e.Cursor = newCursor
 }
 
