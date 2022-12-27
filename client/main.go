@@ -48,9 +48,6 @@ var logger *logrus.Logger
 // WebSocket connection.
 var conn *websocket.Conn
 
-// WebSocket connection.
-var conn *websocket.Conn
-
 // termbox-based editor.
 var e *editor.Editor
 
