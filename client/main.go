@@ -84,16 +84,6 @@ func main() {
 		name = randomdata.SillyName()
 	}
 
-	// Read username based if login flag is set to true, otherwise generate a random name.
-	if *login {
-		fmt.Print("Enter your name: ")
-		s = bufio.NewScanner(os.Stdin)
-		s.Scan()
-		name = s.Text()
-	} else {
-		name = randomdata.SillyName()
-	}
-
 	// Get WebSocket connection.
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 2 * time.Minute,

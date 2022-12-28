@@ -132,11 +132,11 @@ func (e *Editor) MoveCursor(x, y int) {
 
 	// move cursor vertically
 	if y > 0 {
-		newCursor = e.calcCursorDown(y)
+		newCursor = e.calcCursorDown()
 	}
 
 	if y < 0 {
-		newCursor = e.calcCursorUp(y)
+		newCursor = e.calcCursorUp()
 	}
 
 	if newCursor > len(e.Text) {
@@ -150,7 +150,7 @@ func (e *Editor) MoveCursor(x, y int) {
 	e.Cursor = newCursor
 }
 
-func (e *Editor) calcCursorUp(y int) int {
+func (e *Editor) calcCursorUp() int {
 	pos := e.Cursor
 	// reset cursor if out of bounds
 	if pos > len(e.Text)-1 {
@@ -179,7 +179,7 @@ func (e *Editor) calcCursorUp(y int) int {
 
 	pls := -1
 	// find the start of the previous line
-	if cls > 0 { // only need to find pls if cls is set
+	if cls > 0 { // no need to find previous line start if current line start doesn't exist
 		for i := cls - 1; i > 0; i-- {
 			if e.Text[i] == '\n' {
 				pls = i
@@ -195,14 +195,14 @@ func (e *Editor) calcCursorUp(y int) int {
 
 	if cls < 0 {
 		return 0
-	} else if cls-pls < offset { // if previous line is shorter than the offset
+	} else if cls-pls < offset { // if previous line is shorter than the offset, set cursor to start of current line
 		return cls
-	} else {
+	} else { // default
 		return pls + offset
 	}
 }
 
-func (e *Editor) calcCursorDown(y int) int {
+func (e *Editor) calcCursorDown() int {
 	pos := e.Cursor
 	// reset cursor if out of bounds
 	if pos > len(e.Text)-1 {
@@ -238,7 +238,7 @@ func (e *Editor) calcCursorDown(y int) int {
 		}
 	}
 	// find the end of the next line
-	if cle > 0 { // if the end of the current line isn't set, no need to find next line end
+	if cle > 0 { // no need to find next line end if the end of the current line doesn't exist
 		for i := cle + 1; i < len(e.Text); i++ {
 			if e.Text[i] == '\n' {
 				nle = i
