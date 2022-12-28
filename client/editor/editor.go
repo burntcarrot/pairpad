@@ -162,7 +162,7 @@ func (e *Editor) calcCursorUp() int {
 		pos--
 	}
 
-	cls, offset := -1, 1
+	cls := -1
 	// find the start of the line the cursor is currently on
 	for i := pos; i > 0; i-- {
 		if e.Text[i] == '\n' {
@@ -170,6 +170,7 @@ func (e *Editor) calcCursorUp() int {
 			break
 		}
 	}
+	var offset int
 	// set the cursor offset from the start of the current line
 	if cls < 0 {
 		offset = e.Cursor + 1
@@ -214,7 +215,7 @@ func (e *Editor) calcCursorDown() int {
 		pos--
 	}
 
-	cls, offset := -1, 1
+	cls := -1
 	// find the start of the line the cursor is currently on
 	for i := pos; i > 0; i-- {
 		if e.Text[i] == '\n' {
@@ -222,6 +223,7 @@ func (e *Editor) calcCursorDown() int {
 			break
 		}
 	}
+	var offset int
 	// set the cursor offset from the start of the current line
 	if cls < 0 {
 		offset = e.Cursor + 1
