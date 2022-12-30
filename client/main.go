@@ -357,16 +357,13 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	case OperationDelete:
 		logger.Infof("LOCAL DELETE:  cursor position %v\n", e.Cursor)
 		if e.Cursor-1 <= 0 {
-			e.Cursor = 1
+			e.Cursor = 0
 		}
 		text := doc.Delete(e.Cursor)
 		e.SetText(text)
 		msg = message{Type: "operation", Operation: Operation{Type: "delete", Position: e.Cursor}}
 		e.MoveCursor(-1, 0)
 	}
-
-	// Print document state to logs.
-	printDoc(doc)
 
 	err := conn.WriteJSON(msg)
 	if err != nil {

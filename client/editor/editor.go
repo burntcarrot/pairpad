@@ -127,6 +127,9 @@ func (e *Editor) showPositions() {
 
 // MoveCursor updates the Cursor position.
 func (e *Editor) MoveCursor(x, y int) {
+	if len(e.Text) == 0 {
+		return
+	}
 	// move cursor horizontally
 	newCursor := e.Cursor + x
 
