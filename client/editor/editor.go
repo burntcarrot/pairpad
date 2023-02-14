@@ -160,10 +160,100 @@ func (e *Editor) MoveCursor(x, y int) {
 // pls (previous line start), and nle (next line end) hold the index of the '\n' characters that separate
 // each line. These variables are used to calculate the length of the line to move to. If these variables
 // remain at -1, it's assumed that the start or end of the document was found instead of a '\n' character.
-// The variable offset is used to calculate the number of characters between the start of the current line
+// The offset variable is used to calculate the number of characters between the start of the current line
 // and the cursor, which should be kept constant as you move between lines.
 
 // calcCursorUp calculates the new position of the cursor after moving one line up.
+// func (e *Editor) calcCursorUp() int {
+// 	file, err := os.OpenFile("cursor.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+// 	if err != nil {
+// 		fmt.Printf("Logger error, exiting: %s", err)
+// 	}
+// 	defer func() {
+// 		err := file.Close()
+// 		if err != nil {
+// 			log.Fatalln(err)
+// 		}
+// 	}()
+// 	logger := log.New(file, "---", log.LstdFlags)
+
+// 	pos := e.Cursor
+// 	logger.Printf("MOVING UP: initial position: %v\n", pos)
+// 	// reset cursor if out of bounds
+// 	if pos >= len(e.Text) {
+// 		pos = len(e.Text) - 1
+// 		// if e.Text[pos] == '\n' && e.Text[pos-1] == '\n' { // this covers the case where the previous line is blank
+// 		// 	logger.Printf("prev char is new line, setting position to %v\n", pos)
+// 		// 	return pos
+// 		// }
+// 	}
+
+// 	// if cursor is currently on newline, "move" it
+// 	if e.Text[pos] == '\n' {
+// 		logger.Printf("On newline: moving one space back\n")
+// 		pos--
+// 		if pos < 1 {
+// 			logger.Printf("set position to 0")
+// 			return 0
+// 		}
+// 		// if e.Text[pos] == '\n' && e.Text[pos-1] == '\n' { // this covers the case where the previous line is blank
+// 		// 	logger.Printf("prev char is new line, setting position to %v\n", pos)
+// 		// 	return pos
+// 		// }
+// 	}
+
+// 	cls := -1
+// 	// find the start of the line the cursor is currently on
+// 	for i := pos; i >= 0; i-- {
+// 		if e.Text[i] == '\n' {
+// 			cls = i
+// 			break
+// 		}
+// 	}
+// 	// if pos == len(e.Text) {
+// 	// 	logger.Printf("at end of text, setting cursor to %v\n", cls)
+// 	// 	return cls
+// 	// }
+// 	logger.Printf("cls is set to %v\n", cls)
+// 	var offset int
+// 	// set the cursor offset from the start of the current line
+// 	if cls < 0 {
+// 		offset = e.Cursor + 1
+// 	} else {
+// 		offset = e.Cursor - cls
+// 	}
+// 	logger.Printf("offset is set to %v\n", offset)
+// 	pls := -1
+// 	// find the start of the previous line
+// 	if cls > 0 { // no need to find previous line start if current line start doesn't exist
+// 		for i := cls - 1; i >= 0; i-- {
+// 			if e.Text[i] == '\n' {
+// 				pls = i
+// 				break
+// 			}
+// 		}
+// 	}
+// 	// if start of previous line isn't found, assume previous line is first of the document and set cursor to end
+// 	if pls < 0 {
+// 		pls = 0
+// 		offset--
+// 	}
+// 	logger.Printf("pls is set to %v\n", pls)
+
+// 	if cls < 0 {
+// 		return 0
+// 	} else if cls-pls < offset { // if previous line is shorter than the offset, set cursor to start of current line
+// 		logger.Printf("pos is cls (%v)\n", cls)
+// 		return cls
+// 	} else if pos == len(e.Text)-1 {
+// 		return cls + offset
+// 	} else { // default
+// 		logger.Printf("pos is pls (%v) + offset (%v)\n", pls, offset)
+// 		return pls + offset
+// 	}
+// }
+
+// chatGPT
 func (e *Editor) calcCursorUp() int {
 	file, err := os.OpenFile("cursor.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
@@ -177,79 +267,96 @@ func (e *Editor) calcCursorUp() int {
 	}()
 	logger := log.New(file, "---", log.LstdFlags)
 
+	logger.Println("MOVING UP")
+	logger.Printf("Cursor at %v", e.Cursor)
+
 	pos := e.Cursor
-	logger.Printf("MOVING UP: initial position: %v\n", pos)
-	// reset cursor if out of bounds
-	if pos > len(e.Text)-1 {
-		pos = len(e.Text) - 1
-		if e.Text[pos] == '\n' && e.Text[pos-1] == '\n' { // this covers the case where the previous line is blank
-			logger.Printf("prev char is new line, setting position to %v\n", pos)
-			return pos
-		}
-	}
+	offset := 0
 
-	// if cursor is currently on newline, "move" it
-	if e.Text[pos] == '\n' {
-		logger.Printf("On newline: moving one space back\n")
+	if pos == len(e.Text) || e.Text[pos] == '\n' {
+		logger.Println("cursor out of bounds or on newline, moving back one")
+		offset++
 		pos--
-		if pos < 1 {
-			logger.Printf("set position to 0")
-			return 0
-		}
-		if e.Text[pos] == '\n' && e.Text[pos-1] == '\n' { // this covers the case where the previous line is blank
-			logger.Printf("prev char is new line, setting position to %v\n", pos)
-			return pos
-		}
-
 	}
 
-	cls := -1
-	// find the start of the line the cursor is currently on
-	for i := pos; i > 0; i-- {
-		if e.Text[i] == '\n' {
-			cls = i
-			break
-		}
+	start := pos
+	end := pos
+
+	// Find the end of the current line
+	for end < len(e.Text) && e.Text[end] != '\n' {
+		end++
 	}
-	// if pos == len(e.Text) {
-	// 	logger.Printf("at end of text, setting cursor to %v\n", cls)
-	// 	return cls
-	// }
-	logger.Printf("cls is set to %v\n", cls)
-	var offset int
-	// set the cursor offset from the start of the current line
-	if cls < 0 {
-		offset = e.Cursor + 1
-	} else {
-		offset = e.Cursor - cls
+
+	// Find the start of the current line
+	for start > 0 && e.Text[start] != '\n' {
+		start--
 	}
-	logger.Printf("offset is set to %v\n", offset)
-	pls := -1
-	// find the start of the previous line
-	if cls > 0 { // no need to find previous line start if current line start doesn't exist
-		for i := cls - 1; i > 0; i-- {
-			if e.Text[i] == '\n' {
-				pls = i
-				break
-			}
-		}
-	}
-	// if start of previous line isn't found, assume previous line is first of the document and set cursor to end
-	if pls < 0 {
-		pls = 0
-		offset--
-	}
-	logger.Printf("pls is set to %v\n", pls)
-	if cls < 0 {
+	// start++
+
+	logger.Printf("Found start of current line at %v and end of current line at %v\n", start, end)
+
+	// Check if the cursor is at the first line
+	if start == 0 {
 		return 0
-	} else if cls-pls < offset { // if previous line is shorter than the offset, set cursor to start of current line
-		logger.Printf("pos is cls (%v)\n", cls)
-		return cls
-	} else { // default
-		logger.Printf("pos is pls (%v) + offset (%v)\n", pls, offset)
-		return pls + offset
+	}
+
+	// Find the start of the previous line
+	prevStart := start - 1
+	for prevStart >= 0 && e.Text[prevStart] != '\n' {
+		prevStart--
+	}
+
+	logger.Printf("Found start of previous line at %v \n", prevStart)
+
+	// Calculate the cursor position in the previous line
+	offset += pos - start
+	logger.Printf("offset set at %v", offset)
+	logger.Printf("length of line is %v", end-start)
+	if offset <= start-prevStart {
+		logger.Printf("offset is less than the length of the previous line, placing cursor at %v", prevStart+offset+1)
+		return prevStart + offset
+	} else {
+		logger.Printf("offset is greater than the length of the previous line, placing cursor at %v", prevStart+1)
+		return start
 	}
 }
+
+// func (e *Editor) calcCursorUp() int {
+// 	pos := e.Cursor
+
+// 	if e.Text[pos] == '\n' {
+// 		pos--
+// 	}
+
+// 	cls, cle := -1, -1
+// 	for i := pos; i > 0; i-- {
+// 		if e.Text[i] == '\n' {
+
+// 			cls = i
+
+// 		}
+
+// 	}
+
+// 	pls := -1
+// 	for i := cls - 1; i > 0; i-- {
+// 		if e.Text[i] == '\n' {
+// 			pls = i
+// 		}
+// 	}
+// 	offset := 0
+// 	if cls >= 0 {
+// 		offset = e.Cursor - cls
+// 	}
+
+// 	// if cls < 0 {
+// 	// 	return 0
+// 	// } else if cls-pls < offset { // if previous line is shorter than the offset, set cursor to start of current line
+// 	// 	return cls
+// 	// } else { // default
+// 	// 	return pls + offset
+// 	// }
+// }
 
 // calcCursorDown calculates the new position of the cursor after moving one line down.
 func (e *Editor) calcCursorDown() int {
