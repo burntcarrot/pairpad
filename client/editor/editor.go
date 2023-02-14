@@ -2,8 +2,6 @@ package editor
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"time"
 
 	"github.com/mattn/go-runewidth"
@@ -156,73 +154,19 @@ func (e *Editor) MoveCursor(x, y int) {
 	e.Cursor = newCursor
 }
 
-// For the functions calcCursorUp and calcCursorDown, variables like cls (current line start),
-// pls (previous line start), and nle (next line end) hold the index of the '\n' characters that separate
-// each line. These variables are used to calculate the length of the line to move to. If these variables
-// remain at -1, it's assumed that the start or end of the document was found instead of a '\n' character.
-// The offset variable is used to calculate the number of characters between the start of the current line
-// and the cursor, which should be kept constant as you move between lines.
+// For the functions calcCursorUp and calcCursorDown, newline characters are found by iterating
+// backward and forward from the current Cursor position. These characters are taken as the "start"
+// and "end" of the current line. The "offset" from the start of the current line to the Cursor
+// is calculated and used to determine the final Cursor position on the target line, based on whether the
+// offset is greater than the length of the target line. "pos" is used as a placeholder variable for
+// the Cursor.
 
-// calcCursorUp
+// calcCursorUp calculates the intended Cursor position after moving the Cursor up one line.
 func (e *Editor) calcCursorUp() int {
 	pos := e.Cursor
 	offset := 0
 
-	if pos == len(e.Text) || e.Text[pos] == '\n' {
-		offset++
-		pos--
-	}
-
-	start, end := pos, pos
-
-	// Find the end of the current line
-	for end < len(e.Text) && e.Text[end] != '\n' {
-		end++
-	}
-
-	// Find the start of the current line
-	for start > 0 && e.Text[start] != '\n' {
-		start--
-	}
-
-	// Check if the cursor is at the first line
-	if start == 0 {
-		return 0
-	}
-
-	// Find the start of the previous line
-	prevStart := start - 1
-	for prevStart >= 0 && e.Text[prevStart] != '\n' {
-		prevStart--
-	}
-
-	// Calculate the cursor position in the previous line
-	offset += pos - start
-	if offset <= start-prevStart {
-		return prevStart + offset
-	} else {
-		return start
-	}
-}
-
-func (e *Editor) calcCursorDown() int {
-	file, err := os.OpenFile("cursor.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		fmt.Printf("Logger error, exiting: %s", err)
-	}
-	defer func() {
-		err := file.Close()
-		if err != nil {
-			log.Fatalln(err)
-		}
-	}()
-	logger := log.New(file, "---", log.LstdFlags)
-
-	logger.Printf("MOVING DOWN")
-	pos := e.Cursor
-	offset := 0
-
-	logger.Printf("cursor at %v", pos)
+	// If the initial cursor is out of the bounds of the Text or already on a newline, move it.
 	if pos == len(e.Text) || e.Text[pos] == '\n' {
 		offset++
 		pos--
@@ -234,104 +178,91 @@ func (e *Editor) calcCursorDown() int {
 
 	start, end := pos, pos
 
-	// Find the end of the current line
-	for end < len(e.Text) && e.Text[end] != '\n' {
-		end++
-	}
-
-	// Find the start of the current line
+	// Find the start of the current line.
 	for start > 0 && e.Text[start] != '\n' {
 		start--
 	}
 
+	// If the Cursor is already on the first line, move to the beginning of the Text.
+	if start == 0 {
+		return 0
+	}
+
+	// Find the end of the current line.
+	for end < len(e.Text) && e.Text[end] != '\n' {
+		end++
+	}
+
+	// Find the start of the previous line.
+	prevStart := start - 1
+	for prevStart >= 0 && e.Text[prevStart] != '\n' {
+		prevStart--
+	}
+
+	// Calculate the distance from the start of the current line to the Cursor.
+	offset += pos - start
+	if offset <= start-prevStart {
+		return prevStart + offset
+	} else {
+		return start
+	}
+}
+
+func (e *Editor) calcCursorDown() int {
+	pos := e.Cursor
+	offset := 0
+
+	// If the initial Cursor is out of the bounds of the Text or already on a newline, move it.
+	if pos == len(e.Text) || e.Text[pos] == '\n' {
+		offset++
+		pos--
+	}
+
+	if pos < 0 {
+		pos = 0
+	}
+
+	start, end := pos, pos
+
+	// Find the start of the current line.
+	for start > 0 && e.Text[start] != '\n' {
+		start--
+	}
+
+	// This handles the case where the Cursor is on the first line. This is necessary because the start
+	// of the first line is not a newline character, unlike the other lines in the Text.
 	if start == 0 && e.Text[start] != '\n' {
 		offset++
 	}
 
-	// Check if the cursor is at the first line
+	// Find the end of the current line.
+	for end < len(e.Text) && e.Text[end] != '\n' {
+		end++
+	}
+
+	// This handles the case where the Cursor is on a newline. end has to be incremented, otherwise
+	// start == end.
+	if e.Text[pos] == '\n' && e.Cursor != 0 {
+		end++
+	}
+
+	// If the Cursor is already on the last line, move to the end of the Text.
 	if end == len(e.Text) {
 		return len(e.Text)
 	}
 
-	// Find the end of the next line
+	// Find the end of the next line.
 	nextEnd := end + 1
 	for nextEnd < len(e.Text) && e.Text[nextEnd] != '\n' {
 		nextEnd++
 	}
 
-	logger.Printf("start at %v, end at %v", start, end)
-
-	logger.Printf("next ends at %v", nextEnd)
-	// Calculate the cursor position in the current line
+	// Calculate the distance from the start of the current line to the Cursor.
 	offset += pos - start
-	logger.Printf("offset at %v", offset)
-	logger.Printf("next line length is %v", nextEnd-end)
 	if offset < nextEnd-end {
-		logger.Printf("offset is less than length of next line, cursor at %v", end+offset)
 		return end + offset
 	} else {
-		logger.Printf("setting cursor at end of next line")
 		return nextEnd
-	}
-}
-
-// calcCursorDown calculates the new position of the cursor after moving one line down.
-func (e *Editor) calcCursorDown2() int {
-	pos := e.Cursor
-	// reset cursor if out of bounds
-	if pos > len(e.Text)-1 {
-		pos = len(e.Text) - 1
-	}
-
-	// if cursor is currently on newline, "move" it
-	if e.Text[pos] == '\n' {
-		pos--
-	}
-
-	cls := -1
-	// find the start of the line the cursor is currently on
-	for i := pos; i > 0; i-- {
-		if e.Text[i] == '\n' {
-			cls = i
-			break
-		}
-	}
-	var offset int
-	// set the cursor offset from the start of the current line
-	if cls < 0 {
-		offset = e.Cursor + 1
-	} else {
-		offset = e.Cursor - cls
-	}
-
-	cle, nle := -1, -1
-	// find the end of the current line
-	for i := cls + 1; i < len(e.Text); i++ {
-		if e.Text[i] == '\n' {
-			cle = i
-			break
-		}
-	}
-	// find the end of the next line
-	if cle > 0 { // no need to find next line end if the end of the current line doesn't exist
-		for i := cle + 1; i < len(e.Text); i++ {
-			if e.Text[i] == '\n' {
-				nle = i
-				break
-			}
-		}
-	}
-	// if end of next line isn't found, assume next line is last of the document and set cursor to end
-	if nle < 0 {
-		nle = len(e.Text)
-	}
-
-	if cle < 0 {
-		return len(e.Text)
-	} else if nle-cle < offset { // if next line is shorter than the offset, set cursor to end of next line
-		return nle
-	} else { // default
-		return cle + offset
 	}
 }
 
