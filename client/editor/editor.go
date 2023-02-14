@@ -2,6 +2,8 @@ package editor
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/mattn/go-runewidth"
@@ -203,8 +205,78 @@ func (e *Editor) calcCursorUp() int {
 	}
 }
 
-// calcCursorDown calculates the new position of the cursor after moving one line down.
 func (e *Editor) calcCursorDown() int {
+	file, err := os.OpenFile("cursor.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		fmt.Printf("Logger error, exiting: %s", err)
+	}
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}()
+	logger := log.New(file, "---", log.LstdFlags)
+
+	logger.Printf("MOVING DOWN")
+	pos := e.Cursor
+	offset := 0
+
+	logger.Printf("cursor at %v", pos)
+	if pos == len(e.Text) || e.Text[pos] == '\n' {
+		offset++
+		pos--
+	}
+
+	if pos < 0 {
+		pos = 0
+	}
+
+	start, end := pos, pos
+
+	// Find the end of the current line
+	for end < len(e.Text) && e.Text[end] != '\n' {
+		end++
+	}
+
+	// Find the start of the current line
+	for start > 0 && e.Text[start] != '\n' {
+		start--
+	}
+
+	if start == 0 && e.Text[start] != '\n' {
+		offset++
+	}
+
+	// Check if the cursor is at the first line
+	if end == len(e.Text) {
+		return len(e.Text)
+	}
+
+	// Find the end of the next line
+	nextEnd := end + 1
+	for nextEnd < len(e.Text) && e.Text[nextEnd] != '\n' {
+		nextEnd++
+	}
+
+	logger.Printf("start at %v, end at %v", start, end)
+
+	logger.Printf("next ends at %v", nextEnd)
+	// Calculate the cursor position in the current line
+	offset += pos - start
+	logger.Printf("offset at %v", offset)
+	logger.Printf("next line length is %v", nextEnd-end)
+	if offset < nextEnd-end {
+		logger.Printf("offset is less than length of next line, cursor at %v", end+offset)
+		return end + offset
+	} else {
+		logger.Printf("setting cursor at end of next line")
+		return nextEnd
+	}
+}
+
+// calcCursorDown calculates the new position of the cursor after moving one line down.
+func (e *Editor) calcCursorDown2() int {
 	pos := e.Cursor
 	// reset cursor if out of bounds
 	if pos > len(e.Text)-1 {
