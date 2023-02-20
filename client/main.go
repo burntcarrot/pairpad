@@ -356,7 +356,7 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: e.Cursor, Value: ch}}
 	case OperationDelete:
 		logger.Infof("LOCAL DELETE:  cursor position %v\n", e.Cursor)
-		if e.Cursor-1 <= 0 {
+		if e.Cursor-1 < 0 {
 			e.Cursor = 0
 		}
 		text := doc.Delete(e.Cursor)
