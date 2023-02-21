@@ -295,6 +295,10 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			e.MoveCursor(-1, 0)
 		case termbox.KeyArrowRight, termbox.KeyCtrlF:
 			e.MoveCursor(1, 0)
+		case termbox.KeyArrowUp, termbox.KeyCtrlP:
+			e.MoveCursor(0, -1)
+		case termbox.KeyArrowDown, termbox.KeyCtrlN:
+			e.MoveCursor(0, 1)
 		case termbox.KeyHome:
 			e.SetX(0)
 		case termbox.KeyEnd:
@@ -352,17 +356,14 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 		msg = message{Type: "operation", Operation: Operation{Type: "insert", Position: e.Cursor, Value: ch}}
 	case OperationDelete:
 		logger.Infof("LOCAL DELETE:  cursor position %v\n", e.Cursor)
-		if e.Cursor-1 <= 0 {
-			e.Cursor = 1
+		if e.Cursor-1 < 0 {
+			e.Cursor = 0
 		}
 		text := doc.Delete(e.Cursor)
 		e.SetText(text)
 		msg = message{Type: "operation", Operation: Operation{Type: "delete", Position: e.Cursor}}
 		e.MoveCursor(-1, 0)
 	}
-
-	// Print document state to logs.
-	printDoc(doc)
 
 	err := conn.WriteJSON(msg)
 	if err != nil {
