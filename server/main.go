@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/burntcarrot/rowix/crdt"
+	"github.com/burntcarrot/pairpad/crdt"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -125,6 +125,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 			err = clientInfo.Conn.WriteJSON(&msg)
 			if err != nil {
 				color.Red("Failed to send docReq: %v\n", err)
+
 				continue
 			}
 			break
