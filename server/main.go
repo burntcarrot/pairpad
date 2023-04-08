@@ -35,23 +35,25 @@ type Operation struct {
 	Value    string `json:"value"`
 }
 
-// Monotonically increasing site ID.
-var siteID = 0
+var (
+	// Monotonically increasing site ID.
+	siteID = 0
 
-// Mutex for protecting site ID increment operations.
-var mu sync.Mutex
+	// Mutex for protecting site ID increment operations.
+	mu sync.Mutex
 
-// Upgrader instance to upgrade all HTTP connections to a WebSocket.
-var upgrader = websocket.Upgrader{}
+	// Upgrader instance to upgrade all HTTP connections to a WebSocket.
+	upgrader = websocket.Upgrader{}
 
-// Map to store active client connections.
-var activeClients = make(map[uuid.UUID]clientInfo)
+	// Map to store active client connections.
+	activeClients = make(map[uuid.UUID]clientInfo)
 
-// Channel for client messages.
-var messageChan = make(chan message)
+	// Channel for client messages.
+	messageChan = make(chan message)
 
-// Channel for document sync messages.
-var syncChan = make(chan message)
+	// Channel for document sync messages.
+	syncChan = make(chan message)
+)
 
 func main() {
 	// Parse flags.
