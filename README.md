@@ -1,6 +1,6 @@
-![rowix banner](.github/assets/rowix.png)
+![pairpad banner](.github/assets/pairpad.png)
 
-# rowix
+# pairpad
 
 A collaborative text editor written in Go.
 
@@ -22,16 +22,16 @@ A collaborative text editor written in Go.
 | Move cursor up/left |  `Left arrow key` |
 | Move cursor down/right |  `Right arrow key` |
 | Move cursor to start |  `Home` |
-| Move cursor to end|  `End` |
+| Move cursor to end |  `End` |
 
 ## Usage
 
-The easiest way to get started is to download `rowix` from the [releases](https://github.com/burntcarrot/rowix/releases).
+The easiest way to get started is to download `pairpad` from the [releases](https://github.com/burntcarrot/pairpad/releases).
 
 Then start a server:
 
 ```
-Usage of rowix-server:
+Usage of pairpad-server:
   -addr string
         Server's network address (default ":8080")
 ```
@@ -39,7 +39,7 @@ Usage of rowix-server:
 Then start a client:
 
 ```
-Usage of rowix:
+Usage of pairpad:
   -login
         Enable the login prompt
   -path string
@@ -85,17 +85,17 @@ RUN go mod download
 
 COPY ./ ./
 
-RUN apk add --no-cache bash && go build -o ./rowix-server ./server/main.go
+RUN apk add --no-cache bash && go build -o ./pairpad-server ./server/main.go
 
 EXPOSE 8080
 
-CMD [ "/app/rowix-server" ]
+CMD [ "/app/pairpad-server" ]
 ```
 
 Here's a sample `fly.toml` file:
 
 ```toml
-app = "rowix-server-<YOUR_NAME>"
+app = "pairpad-server-<YOUR_NAME>"
 kill_signal = "SIGINT"
 kill_timeout = 5
 processes = []
@@ -152,7 +152,7 @@ Here's a basic explanation:
 
 ## License
 
-`rowix` is licensed under the [MIT license](LICENSE).
+`pairpad` is licensed under the [MIT license](LICENSE).
 
 ## Future plans
 
