@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/burntcarrot/rowix/crdt"
+	"github.com/burntcarrot/pairpad/crdt"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"

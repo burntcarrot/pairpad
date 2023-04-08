@@ -17,4 +17,4 @@ name = "go"
 enabled = true
 
   [analyzers.meta]
-  import_root = "github.com/burntcarrot/rowix"
+  import_root = "github.com/burntcarrot/pairpad"

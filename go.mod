@@ -1,4 +1,4 @@
-module github.com/burntcarrot/rowix
+module github.com/burntcarrot/pairpad
 
 go 1.18
 

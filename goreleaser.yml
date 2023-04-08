@@ -1,9 +1,9 @@
-project_name: rowix
+project_name: pairpad
 
 builds:
-  - id: "rowix-server"
+  - id: "pairpad-server"
     main: ./server/main.go
-    binary: rowix-server
+    binary: pairpad-server
     goos:
       - linux
       - darwin
@@ -15,9 +15,9 @@ builds:
     mod_timestamp: '{{ .CommitTimestamp }}'
     env:
     - CGO_ENABLED=0
-  - id: "rowix-client"
+  - id: "pairpad-client"
     main: ./client/main.go
-    binary: rowix
+    binary: pairpad
     goos:
       - linux
       - darwin

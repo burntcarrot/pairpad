@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/Pallinder/go-randomdata"
-	"github.com/burntcarrot/rowix/client/editor"
-	"github.com/burntcarrot/rowix/crdt"
+	"github.com/burntcarrot/pairpad/client/editor"
+	"github.com/burntcarrot/pairpad/crdt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nsf/termbox-go"
@@ -113,13 +113,13 @@ func main() {
 	}
 
 	// Get log paths based on the home directory.
-	rowixDir := filepath.Join(homeDir, ".rowix")
-	if rowixDirExists(rowixDir) && homeDirExists {
-		logPath = filepath.Join(rowixDir, "rowix.log")
-		debugLogPath = filepath.Join(rowixDir, "rowix-debug.log")
+	pairpadDir := filepath.Join(homeDir, ".pairpad")
+	if pairpadDirExists(pairpadDir) && homeDirExists {
+		logPath = filepath.Join(pairpadDir, "pairpad.log")
+		debugLogPath = filepath.Join(pairpadDir, "pairpad-debug.log")
 	} else {
-		logPath = "rowix.log"
-		debugLogPath = "rowix-debug.log"
+		logPath = "pairpad.log"
+		debugLogPath = "pairpad-debug.log"
 	}
 
 	// open the log file and create if it does not exist
@@ -184,7 +184,7 @@ func main() {
 
 	err = UI(conn)
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "rowix") {
+		if strings.HasPrefix(err.Error(), "pairpad") {
 			fmt.Println("exiting session.")
 			return
 		}
@@ -252,7 +252,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 	if ev.Type == termbox.EventKey {
 		switch ev.Key {
 		case termbox.KeyEsc, termbox.KeyCtrlC:
-			return errors.New("rowix: exiting")
+			return errors.New("pairpad: exiting")
 		case termbox.KeyCtrlS:
 			if fileName != "" {
 				err := crdt.Save(fileName, &doc)
@@ -454,16 +454,16 @@ func getMsgChan(conn *websocket.Conn) chan message {
 	return messageChan
 }
 
-func rowixDirExists(rowixDir string) bool {
-	if _, err := os.Stat(rowixDir); err == nil {
+func pairpadDirExists(pairpadDir string) bool {
+	if _, err := os.Stat(pairpadDir); err == nil {
 		return true
 	} else if errors.Is(err, os.ErrNotExist) {
-		err = os.Mkdir(rowixDir, 0744) // skipcq: GSC-G302
+		err = os.Mkdir(pairpadDir, 0744) // skipcq: GSC-G302
 		if err != nil {
 			return false
 		} else {
 			// skipcq: GSC-G302
-			if err = os.Chmod(rowixDir, 0744); err != nil {
+			if err = os.Chmod(pairpadDir, 0744); err != nil {
 				return false
 			} else {
 				return true
