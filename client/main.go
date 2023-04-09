@@ -49,7 +49,7 @@ func main() {
 	conn, _, err := createConn(flags)
 	if err != nil {
 		fmt.Printf("Connection error, exiting: %s\n", err)
-		os.Exit(0)
+		return
 	}
 	defer conn.Close()
 
@@ -60,7 +60,7 @@ func main() {
 	logFile, debugLogFile, err := setupLogger(logger)
 	if err != nil {
 		fmt.Printf("Failed to setup logger, exiting: %s\n", err)
-		os.Exit(0)
+		return
 	}
 	defer closeLogFiles(logFile, debugLogFile)
 
@@ -70,7 +70,7 @@ func main() {
 	if flags.File != "" {
 		if doc, err = crdt.Load(flags.File); err != nil {
 			fmt.Printf("failed to load document: %s\n", err)
-			os.Exit(0)
+			return
 		}
 	}
 
@@ -85,6 +85,6 @@ func main() {
 
 		// This is printed when it's an actual error.
 		fmt.Printf("TUI error, exiting: %s\n", err)
-		os.Exit(0)
+		return
 	}
 }
