@@ -16,13 +16,16 @@ A collaborative text editor written in Go.
 
 | Action         | Key |
 |--------------|:-----:|
-| Exit |  `Esc` |
-| Save to document (needs `-file` flag to supplied during startup) |  `Ctrl+S` |
-| Load from document (needs `-file` flag to supplied during startup) |  `Ctrl+L` |
-| Move cursor up/left |  `Left arrow key` |
-| Move cursor down/right |  `Right arrow key` |
+| Exit |  `Esc`, `Ctrl+C` |
+| Save to document |  `Ctrl+S` |
+| Load from document |  `Ctrl+L` |
+| Move cursor left |  `Left arrow key`, `Ctrl+B` |
+| Move cursor right |  `Right arrow key`, Ctrl+F` |
+| Move cursor up |  `Up arrow key`, Ctrl+P` |
+| Move cursor down |  `Down arrow key`, Ctrl+N` |
 | Move cursor to start |  `Home` |
 | Move cursor to end |  `End` |
+| Delete characters |  `Backspace`, `Delete` |
 
 ## Usage
 
@@ -40,15 +43,24 @@ Then start a client:
 
 ```
 Usage of pairpad:
+  -debug
+        Enable debugging mode to show more verbose logs
+  -file string
+        The file to load the pairpad content from
   -login
-        Enable the login prompt
-  -path string
-        Server path (default "/")
+        Enable the login prompt for the server
+  -secure
+        Enable a secure WebSocket connection (wss://)
   -server string
-        Server network address (default "localhost:8080")
-  -wss
-        Enable a secure WebSocket connection
+        The network address of the server (default "localhost:8080")
 ```
+
+Example usage would be:
+
+- Connect to a server: `pairpad -server pairpad.test`
+- Enable login prompt: `pairpad -server pairpad.test -login`
+- Specify a file to save to/load from: `pairpad -server pairpad.test -file example.txt`
+- Enable debugging mode: `pairpad -server pairpad.test -debug`
 
 ### Local setup
 
@@ -61,7 +73,7 @@ go run server/main.go
 To start the client:
 
 ```
-go run client/main.go
+go run client/*.go
 ```
 
 (spin up at least 2 clients - it's a collaborative editor! Also works with a single client.)
