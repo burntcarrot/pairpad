@@ -6,6 +6,9 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+// TUI is built using termbox-go.
+// termbox allows us to set any content to individual cells, and hence, the basic building block of the editor is a "cell".
+
 // UI creates a new editor view and runs the main loop.
 func UI(conn *websocket.Conn) error {
 	err := termbox.Init()
@@ -28,10 +31,12 @@ func UI(conn *websocket.Conn) error {
 
 // mainLoop is the main update loop for the UI.
 func mainLoop(conn *websocket.Conn) error {
+	// termboxChan is used for sending and receiving termbox events.
 	termboxChan := getTermboxChan()
+
+	// msgChan is used for sending and receiving messages.
 	msgChan := getMsgChan(conn)
 
-	// event select
 	for {
 		select {
 		case termboxEvent := <-termboxChan:

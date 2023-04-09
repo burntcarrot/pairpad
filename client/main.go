@@ -8,25 +8,10 @@ import (
 
 	"github.com/Pallinder/go-randomdata"
 	"github.com/burntcarrot/pairpad/client/editor"
+	"github.com/burntcarrot/pairpad/commons"
 	"github.com/burntcarrot/pairpad/crdt"
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
-
-type message struct {
-	Username  string        `json:"username"`
-	Text      string        `json:"text"`
-	Type      string        `json:"type"`
-	ID        uuid.UUID     `json:"ID"`
-	Operation Operation     `json:"operation"`
-	Document  crdt.Document `json:"document"`
-}
-
-type Operation struct {
-	Type     string `json:"type"`
-	Position int    `json:"position"`
-	Value    string `json:"value"`
-}
 
 var (
 	// Local document containing content.
@@ -69,7 +54,7 @@ func main() {
 	defer conn.Close()
 
 	// Send joining message.
-	msg := message{Username: name, Text: "has joined the session.", Type: "join"}
+	msg := commons.Message{Username: name, Text: "has joined the session.", Type: commons.JoinMessage}
 	_ = conn.WriteJSON(msg)
 
 	logFile, debugLogFile, err := setupLogger(logger)

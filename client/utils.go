@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/writer"
 )
 
+// Flags represents the command-line flags that are passed to pairpad's client.
 type Flags struct {
 	Server string
 	Secure bool
@@ -24,12 +25,13 @@ type Flags struct {
 	Debug  bool
 }
 
+// parseFlags parses command-line flags.
 func parseFlags() Flags {
 	serverAddr := flag.String("server", "localhost:8080", "The network address of the server")
 	useSecureConn := flag.Bool("secure", false, "Enable a secure WebSocket connection (wss://)")
 	enableDebug := flag.Bool("debug", false, "Enable debugging mode to show more verbose logs")
 	enableLogin := flag.Bool("login", false, "Enable the login prompt for the server")
-	file := flag.String("file", "pairpad-content.txt", "The file to load the pairpad content from")
+	file := flag.String("file", "", "The file to load the pairpad content from")
 
 	flag.Parse()
 
@@ -42,6 +44,7 @@ func parseFlags() Flags {
 	}
 }
 
+// createConn creates a WebSocket connection.
 func createConn(flags Flags) (*websocket.Conn, *http.Response, error) {
 	var u url.URL
 	if flags.Secure {
@@ -58,6 +61,7 @@ func createConn(flags Flags) (*websocket.Conn, *http.Response, error) {
 	return dialer.Dial(u.String(), nil)
 }
 
+// ensureDirExists ensures that a directory exists, and if it isn't present, it tries to create a new one.
 func ensureDirExists(path string) (bool, error) {
 	// Check if the directory exists
 	if _, err := os.Stat(path); err == nil {
@@ -73,6 +77,7 @@ func ensureDirExists(path string) (bool, error) {
 	return true, nil
 }
 
+// setupLogger initializes the client's logger (logrus).
 func setupLogger(logger *logrus.Logger) (*os.File, *os.File, error) {
 	// define log file paths, based on the home directory.
 	logPath := "pairpad.log"
@@ -98,14 +103,14 @@ func setupLogger(logger *logrus.Logger) (*os.File, *os.File, error) {
 		debugLogPath = filepath.Join(pairpadDir, "pairpad-debug.log")
 	}
 
-	// open the log file and create if it does not exist
+	// Open the log file and create if it does not exist.
 	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // skipcq: GSC-G302
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
 		return nil, nil, err
 	}
 
-	// create a separate log file for verbose logs
+	// Create a separate log file for verbose logs.
 	debugLogFile, err := os.OpenFile(debugLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) // skipcq: GSC-G302
 	if err != nil {
 		fmt.Printf("Logger error, exiting: %s", err)
@@ -135,6 +140,8 @@ func setupLogger(logger *logrus.Logger) (*os.File, *os.File, error) {
 	return logFile, debugLogFile, nil
 }
 
+// closeLogFiles closes the log files created by the client.
+// closeLogFiles is meant to be used for defer calls.
 func closeLogFiles(logFile, debugLogFile *os.File) {
 	if err := logFile.Close(); err != nil {
 		fmt.Printf("Failed to close log file: %s", err)
