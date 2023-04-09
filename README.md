@@ -20,9 +20,9 @@ A collaborative text editor written in Go.
 | Save to document |  `Ctrl+S` |
 | Load from document |  `Ctrl+L` |
 | Move cursor left |  `Left arrow key`, `Ctrl+B` |
-| Move cursor right |  `Right arrow key`, Ctrl+F` |
-| Move cursor up |  `Up arrow key`, Ctrl+P` |
-| Move cursor down |  `Down arrow key`, Ctrl+N` |
+| Move cursor right |  `Right arrow key`, `Ctrl+F` |
+| Move cursor up |  `Up arrow key`, `Ctrl+P` |
+| Move cursor down |  `Down arrow key`, `Ctrl+N` |
 | Move cursor to start |  `Home` |
 | Move cursor to end |  `End` |
 | Delete characters |  `Backspace`, `Delete` |
@@ -34,12 +34,20 @@ The easiest way to get started is to download `pairpad` from the [releases](http
 Then start a server:
 
 ```
+./pairpad-server
+```
+
+```
 Usage of pairpad-server:
   -addr string
         Server's network address (default ":8080")
 ```
 
 Then start a client:
+
+```
+./pairpad
+```
 
 ```
 Usage of pairpad:
