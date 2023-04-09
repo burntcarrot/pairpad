@@ -8,20 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/burntcarrot/pairpad/crdt"
+	"github.com/burntcarrot/pairpad/commons"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
-
-type message struct {
-	Username  string        `json:"username"`
-	Text      string        `json:"text"`
-	Type      string        `json:"type"`
-	ID        uuid.UUID     `json:"ID"`
-	Operation Operation     `json:"operation"`
-	Document  crdt.Document `json:"document"`
-}
 
 type clientInfo struct {
 	Username string `json:"username"`
@@ -29,29 +20,25 @@ type clientInfo struct {
 	Conn     *websocket.Conn
 }
 
-type Operation struct {
-	Type     string `json:"type"`
-	Position int    `json:"position"`
-	Value    string `json:"value"`
-}
+var (
+	// Monotonically increasing site ID.
+	siteID = 0
 
-// Monotonically increasing site ID.
-var siteID = 0
+	// Mutex for protecting site ID increment operations.
+	mu sync.Mutex
 
-// Mutex for protecting site ID increment operations.
-var mu sync.Mutex
+	// Upgrader instance to upgrade all HTTP connections to a WebSocket.
+	upgrader = websocket.Upgrader{}
 
-// Upgrader instance to upgrade all HTTP connections to a WebSocket.
-var upgrader = websocket.Upgrader{}
+	// Map to store active client connections.
+	activeClients = make(map[uuid.UUID]clientInfo)
 
-// Map to store active client connections.
-var activeClients = make(map[uuid.UUID]clientInfo)
+	// Channel for client messages.
+	messageChan = make(chan commons.Message)
 
-// Channel for client messages.
-var messageChan = make(chan message)
-
-// Channel for document sync messages.
-var syncChan = make(chan message)
+	// Channel for document sync messages.
+	syncChan = make(chan commons.Message)
+)
 
 func main() {
 	// Parse flags.
@@ -112,7 +99,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	color.Yellow("Assigning siteID: %s", c.SiteID)
 
 	// Generate a Site ID message.
-	siteIDMsg := message{Type: "SiteID", Text: c.SiteID, ID: clientID}
+	siteIDMsg := commons.Message{Type: commons.SiteIDMessage, Text: c.SiteID, ID: clientID}
 	if err := conn.WriteJSON(siteIDMsg); err != nil {
 		color.Red("ERROR: didn't send siteID message")
 	}
@@ -120,7 +107,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	// send a document request to an existing client
 	for id, clientInfo := range activeClients {
 		if id != clientID {
-			msg := message{Type: "docReq", ID: clientID}
+			msg := commons.Message{Type: commons.DocReqMessage, ID: clientID}
 			color.Cyan("sending docReq to %s on behalf of %s", id, clientID)
 			err = clientInfo.Conn.WriteJSON(&msg)
 			if err != nil {
@@ -133,7 +120,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 
 	// read messages from the connection and send to channel to broadcast
 	for {
-		var msg message
+		var msg commons.Message
 
 		// Read message from the connection.
 		err := conn.ReadJSON(&msg)
@@ -147,7 +134,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		msg.ID = clientID
 
 		// Send docSync to handleSync function
-		if msg.Type == "docSync" {
+		if msg.Type == commons.DocSyncMessage {
 			syncChan <- msg
 			continue
 		}
@@ -165,7 +152,7 @@ func handleMsg() {
 
 		// Log each message to stdout.
 		t := time.Now().Format(time.ANSIC)
-		if msg.Type == "join" {
+		if msg.Type == commons.JoinMessage {
 			// Set the username received from the client to the clientInfo present in activeClients.
 			clientInfo := activeClients[msg.ID]
 			clientInfo.Username = msg.Username
