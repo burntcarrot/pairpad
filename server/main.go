@@ -85,17 +85,19 @@ func main() {
 
 // handleConn handles incoming HTTP connections by adding the connection to activeClients and reads messages from the connection.
 func handleConn(w http.ResponseWriter, r *http.Request) {
+	// Generate the UUID and the site ID for the client.
+	clientID := uuid.New()
+
 	// Upgrade incoming HTTP connections to WebSocket connections
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		color.Red("Error upgrading connection to websocket: %v\n", err)
+		closeConn(clientID)
+		return
 	}
 	defer conn.Close()
 
 	color.Yellow("total active clients: %d\n", len(activeClients))
-
-	// Generate the UUID and the site ID for the client.
-	clientID := uuid.New()
 
 	// Carefully increment site ID with mutexes.
 	mu.Lock()
@@ -115,6 +117,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	siteIDMsg := message{Type: "SiteID", Text: c.SiteID, ID: clientID}
 	if err := conn.WriteJSON(siteIDMsg); err != nil {
 		color.Red("ERROR: didn't send siteID message")
+		closeConn(clientID)
 	}
 
 	// send a document request to an existing client
@@ -125,7 +128,6 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 			err = clientInfo.Conn.WriteJSON(&msg)
 			if err != nil {
 				color.Red("Failed to send docReq: %v\n", err)
-
 				continue
 			}
 			break
@@ -139,9 +141,11 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		// Read message from the connection.
 		err := conn.ReadJSON(&msg)
 		if err != nil {
-			color.Red("Closing connection with username: %v\n", activeClients[clientID].Username)
-			delete(activeClients, clientID)
-			break
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				color.Red("Failed to read message from client %s: %v", activeClients[clientID].Username, err)
+			}
+			closeConn(clientID)
+			return
 		}
 
 		// Set message ID
@@ -156,6 +160,15 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		// Send message to messageChan for logging and broadcasting
 		messageChan <- msg
 	}
+}
+
+// closeConn cleanly closes a client connection.
+func closeConn(clientID uuid.UUID) {
+	if err := activeClients[clientID].Conn.Close(); err != nil {
+		color.Red("Error closing connection: %v\n", err)
+	}
+	color.Red("Closing connection with username: %v\n", activeClients[clientID].Username)
+	delete(activeClients, clientID)
 }
 
 // handleMsg listens to the messageChan channel and broadcasts messages to other clients.
