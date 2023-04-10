@@ -84,18 +84,16 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	color.Yellow("total active clients: %d\n", len(activeClients))
-
-	// Carefully increment site ID with mutexes.
+	// Carefully increment and assign site ID with mutexes.
 	mu.Lock()
 	siteID++
-	mu.Unlock()
-
-	siteID := strconv.Itoa(siteID)
 
 	// Add the client to the map of active clients.
-	c := clientInfo{Conn: conn, SiteID: siteID}
+	c := clientInfo{Conn: conn, SiteID: strconv.Itoa(siteID)}
 	activeClients[clientID] = c
+	mu.Unlock()
+
+	color.Yellow("New client joining. Total active clients: %d\n", len(activeClients))
 
 	color.Magenta("activeClients after SiteID generation: %+v", activeClients)
 	color.Yellow("Assigning siteID: %s", c.SiteID)
