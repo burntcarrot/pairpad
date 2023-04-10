@@ -226,10 +226,19 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 			if err != nil {
 				logger.Errorf("failed to insert, err: %v\n", err)
 			}
+
+			e.SetText(crdt.Content(doc))
+			if msg.Operation.Position-1 <= e.Cursor {
+				e.MoveCursor(len(msg.Operation.Value), 0)
+			}
 			logger.Infof("REMOTE INSERT: %s at position %v\n", msg.Operation.Value, msg.Operation.Position)
 
 		case "delete":
 			_ = doc.Delete(msg.Operation.Position)
+			e.SetText(crdt.Content(doc))
+			if msg.Operation.Position-1 <= e.Cursor {
+				e.MoveCursor(-len(msg.Operation.Value), 0)
+			}
 			logger.Infof("REMOTE DELETE: position %v\n", msg.Operation.Position)
 		}
 	}
@@ -240,7 +249,6 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 	// This is to ensure that the debug logs don't take up much space on the user's filesystem, and can be toggled on demand.
 	printDoc(doc)
 
-	e.SetText(crdt.Content(doc))
 	e.Draw()
 }
 
