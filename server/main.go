@@ -103,6 +103,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	if err := conn.WriteJSON(siteIDMsg); err != nil {
 		color.Red("ERROR: didn't send siteID message")
 		closeConn(clientID)
+		return
 	}
 
 	// send a document request to an existing client
