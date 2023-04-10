@@ -16,7 +16,7 @@ builds:
     env:
     - CGO_ENABLED=0
   - id: "pairpad-client"
-    main: ./client/main.go
+    dir: ./client
     binary: pairpad
     goos:
       - linux
