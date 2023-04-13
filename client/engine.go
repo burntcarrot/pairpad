@@ -85,6 +85,14 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		case termbox.KeyArrowDown, termbox.KeyCtrlN:
 			e.MoveCursor(0, 1)
 
+		// The default key for scrolling down by one line is Ctrl+D.
+		case termbox.KeyCtrlD:
+			e.Scroll(1)
+
+		// The default key for scrolling up by one line is Ctrl+U.
+		case termbox.KeyCtrlU:
+			e.Scroll(-1)
+
 		// Home key, moves cursor to initial position (X=0).
 		case termbox.KeyHome:
 			e.SetX(0)

@@ -74,7 +74,7 @@ func main() {
 		}
 	}
 
-	err = UI(conn)
+	err = initUI(conn)
 	if err != nil {
 		// If error has the prefix "pairpad", then it was triggered by an event that wasn't an error, for example, exiting the editor.
 		// It's a hacky solution since the UI returns an error only.

@@ -9,8 +9,8 @@ import (
 // TUI is built using termbox-go.
 // termbox allows us to set any content to individual cells, and hence, the basic building block of the editor is a "cell".
 
-// UI creates a new editor view and runs the main loop.
-func UI(conn *websocket.Conn) error {
+// initUI creates a new editor view and runs the main loop.
+func initUI(conn *websocket.Conn) error {
 	err := termbox.Init()
 	if err != nil {
 		return err
@@ -18,6 +18,7 @@ func UI(conn *websocket.Conn) error {
 	defer termbox.Close()
 
 	e = editor.NewEditor()
+	e.Logger.Print("NEW SESH")
 	e.SetSize(termbox.Size())
 	e.Draw()
 

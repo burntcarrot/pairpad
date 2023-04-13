@@ -143,6 +143,9 @@ func TestMoveCursor(t *testing.T) {
 			text: []rune("\n\n\n\n\n")},
 		{description: "move down (from empty line to empty line 2)", cursor: 2, y: 1, expectedCursor: 3,
 			text: []rune("\n\n\n\n\n")},
+		//TODO: Tests to add:
+		// moving cursor down at bottom of screen causing scroll
+		// moving cursor up at top causing scroll
 	}
 
 	e := NewEditor()
@@ -160,3 +163,119 @@ func TestMoveCursor(t *testing.T) {
 		}
 	}
 }
+
+func TestScroll(t *testing.T) {
+	{
+		tests := []struct {
+			description    string
+			scrollAmt      int
+			rowOff         int
+			expectedRowOff int
+			cursor         int
+			expectedCursor int
+			// runeAtCursor rune
+			// expectedRuneAtCursor rune
+			text []rune
+		}{
+			{description: "normal scroll down",
+				scrollAmt: 1,
+				rowOff:    0, expectedRowOff: 1,
+				cursor: 0, expectedCursor: 2,
+				// runeAtCursor: a, expectedRuneAtCursor: ,
+				text: []rune("a\nb\nc\nd\ne\nf\ng\n")},
+
+			{description: "normal scroll up",
+				scrollAmt: -1,
+				rowOff:    1, expectedRowOff: 0,
+				cursor: 2, expectedCursor: 2,
+				text: []rune("a\nb\nc\nd\ne\nf\ng\n")},
+
+			{description: "normal scroll up",
+				scrollAmt: -1,
+				rowOff:    1, expectedRowOff: 0,
+				cursor: 0, expectedCursor: 0,
+				text: []rune("a\nb\nc\nd\ne\nf\ng\n")},
+			//TODO: tests to add:
+			// scrolling down with short text is rejected
+			// scrolling up at top is rejected
+			// scrolling down with cursor at top keeps cursor in same place
+			// scrolling
+		}
+
+		e := NewEditor()
+		e.Width = 80
+		e.Height = 5
+
+		for _, tc := range tests {
+			e.RowOff = tc.rowOff
+			e.Cursor = tc.cursor
+			e.Text = tc.text
+
+			e.Scroll(tc.scrollAmt)
+
+			gotCursor := e.Cursor
+			expectedCursor := tc.expectedCursor
+
+			if !cmp.Equal(gotCursor, expectedCursor) {
+				t.Errorf("(%s) Wrong cursor: got != expected, diff: %v\n", tc.description, cmp.Diff(gotCursor, expectedCursor))
+			}
+
+			gotRowOff := e.RowOff
+			expectedRowOff := tc.expectedRowOff
+
+			if !cmp.Equal(gotRowOff, expectedRowOff) {
+				t.Errorf("(%s) Wrong offset: got != expected, diff: %v\n", tc.description, cmp.Diff(gotRowOff, expectedRowOff))
+			}
+		}
+	}
+}
+
+// func TestSetCursorY(t *testing.T) {
+// 	tests := []struct {
+// 		description    string
+// 		yDest          int
+// 		rowOff         int
+// 		expectedRowOff int
+// 		cursor         int
+// 		expectedCursor int
+// 		// runeAtCursor rune
+// 		// expectedRuneAtCursor rune
+// 		text []rune
+// 	}{
+// 		{
+// 			description: "Set cursor y to first line",
+// 			yDest:       0,
+// 		},
+// 		{
+// 			description: "Set cursor y to last line",
+// 		},
+// 		{
+// 			description: "Set cursor y out of bounds, negative",
+// 		},
+// 		{
+// 			description: "Set cursor y out of bounds, positive",
+// 		},
+// 		{
+// 			description: "Set cursor y to start of editor window",
+// 		},
+// 		{
+// 			description: "Set cursor y to end of editor window",
+// 		},
+// 	}
+
+// 	e := NewEditor()
+
+// 	for _, tc := range tests {
+// 		e.Cursor = tc.cursor
+// 		e.Text = tc.text
+
+// 		e.setCursorY(tc.yDest)
+
+// 		got := e.Cursor
+// 		expected := tc.expectedCursor
+
+// 		if !cmp.Equal(got, expected) {
+// 			t.Errorf("(%s) got != expected, diff: %v\n", tc.description, cmp.Diff(got, expected))
+// 		}
+// 	}
+// }
