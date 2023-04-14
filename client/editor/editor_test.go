@@ -144,13 +144,6 @@ func TestMoveCursor(t *testing.T) {
 			text: []rune("\n\n\n\n\n")},
 		{description: "move down (from empty line to empty line 2)", cursor: 2, y: 1, expectedCursor: 3,
 			text: []rune("\n\n\n\n\n")},
-		//TODO: Tests to add:
-		// moving cursor down at bottom of screen causing scroll
-		// moving cursor up at top causing scroll
-		// test scrolling
-
-		{description: "move down (from empty line to empty line 2)", cursor: 2, y: 1, expectedCursor: 3,
-			text: []rune("\n\n\n\n\n")},
 	}
 
 	e := NewEditor()
@@ -173,8 +166,8 @@ func TestScroll(t *testing.T) {
 	{
 		tests := []struct {
 			description    string
-			scrollX        int
-			scrollY        int
+			x              int
+			y              int
 			colOff         int
 			expectedColOff int
 			rowOff         int
@@ -184,39 +177,36 @@ func TestScroll(t *testing.T) {
 			text           []rune
 		}{
 			{description: "scroll down",
-				scrollY: 1,
-				colOff:  0, expectedColOff: 0,
+				y:      1,
+				colOff: 0, expectedColOff: 0,
 				rowOff: 0, expectedRowOff: 1,
 				cursor: 6, expectedCursor: 8,
 				text: []rune("a\nb\nc\nd\ne")},
 
 			{description: "scroll up",
-				scrollY: -1,
-				colOff:  0, expectedColOff: 0,
+				y:      -1,
+				colOff: 0, expectedColOff: 0,
 				rowOff: 1, expectedRowOff: 0,
 				cursor: 2, expectedCursor: 0,
 				text: []rune("a\nb\nc\nd\ne")},
 
 			{description: "scroll right",
-				scrollX: 1,
-				colOff:  0, expectedColOff: 1,
+				x:      1,
+				colOff: 0, expectedColOff: 1,
 				rowOff: 0, expectedRowOff: 0,
 				cursor: 4, expectedCursor: 5,
 				text: []rune("abcde")},
 
 			{description: "scroll left",
-				scrollX: -1,
-				colOff:  1, expectedColOff: 0,
+				x:      -1,
+				colOff: 1, expectedColOff: 0,
 				rowOff: 0, expectedRowOff: 0,
 				cursor: 1, expectedCursor: 0,
 				text: []rune("abcde")},
-			//TODO: tests to add:
-			// scroll right
-			// scroll left
 		}
 
 		e := NewEditor()
-		e.Width = 4
+		e.Width = 5
 		e.Height = 5
 
 		for _, tc := range tests {
@@ -225,7 +215,7 @@ func TestScroll(t *testing.T) {
 			e.Cursor = tc.cursor
 			e.Text = tc.text
 
-			e.MoveCursor(tc.scrollX, tc.scrollY)
+			e.MoveCursor(tc.x, tc.y)
 
 			gotCursor := e.Cursor
 			expectedCursor := tc.expectedCursor

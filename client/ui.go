@@ -18,7 +18,6 @@ func initUI(conn *websocket.Conn) error {
 	defer termbox.Close()
 
 	e = editor.NewEditor()
-	e.Logger.Print("NEW SESH")
 	e.SetSize(termbox.Size())
 	e.Draw()
 
