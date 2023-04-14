@@ -25,7 +25,7 @@ type Editor struct {
 	// Height represents the terminal's width in characters.
 	Height int
 
-	//ColOff is the number of columns between the start of a line and the left of the editor window
+	// ColOff is the number of columns between the start of a line and the left of the editor window
 	ColOff int
 
 	// RowOff is the number of rows between the beginning of the text and the top of the editor window
