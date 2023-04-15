@@ -203,6 +203,20 @@ func TestScroll(t *testing.T) {
 				rowOff: 0, expectedRowOff: 0,
 				cursor: 1, expectedCursor: 0,
 				text: []rune("abcde")},
+
+			{description: "horizontal jump backwards",
+				x:      1,
+				colOff: 4, expectedColOff: 0,
+				rowOff: 0, expectedRowOff: 0,
+				cursor: 8, expectedCursor: 9,
+				text: []rune("abcdefgh\nijk")},
+
+			{description: "horizontal jump forwards",
+				x:      -1,
+				colOff: 0, expectedColOff: 4,
+				rowOff: 0, expectedRowOff: 0,
+				cursor: 9, expectedCursor: 8,
+				text: []rune("abcdefgh\nijk")},
 		}
 
 		e := NewEditor()
@@ -228,14 +242,14 @@ func TestScroll(t *testing.T) {
 			expectedRowOff := tc.expectedRowOff
 
 			if !cmp.Equal(gotRowOff, expectedRowOff) {
-				t.Errorf("(%s) Wrong offset: got != expected, diff: %v\n", tc.description, cmp.Diff(gotRowOff, expectedRowOff))
+				t.Errorf("(%s) Wrong row offset: got != expected, diff: %v\n", tc.description, cmp.Diff(gotRowOff, expectedRowOff))
 			}
 
 			gotColOff := e.ColOff
 			expectedColOff := tc.expectedColOff
 
 			if !cmp.Equal(gotColOff, expectedColOff) {
-				t.Errorf("(%s) Wrong offset: got != expected, diff: %v\n", tc.description, cmp.Diff(gotColOff, expectedColOff))
+				t.Errorf("(%s) Wrong col offset: got != expected, diff: %v\n", tc.description, cmp.Diff(gotColOff, expectedColOff))
 			}
 		}
 	}

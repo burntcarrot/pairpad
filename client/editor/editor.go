@@ -220,20 +220,26 @@ func (e *Editor) MoveCursor(x, y int) {
 	cx, cy := e.calcCursorXY(newCursor)
 
 	// move the window to adjust for the cursor
-	if cy > e.GetRowOff()+e.GetHeight()-1 {
-		e.IncRowOff(1)
+	rowStart := e.GetRowOff()
+	rowEnd := e.GetRowOff() + e.GetHeight() - 1
+
+	if cy <= rowStart { // scroll up
+		e.IncRowOff(cy - rowStart - 1)
 	}
 
-	if cy <= e.GetRowOff() {
-		e.IncRowOff(-1)
+	if cy > rowEnd { // scroll down
+		e.IncRowOff(cy - rowEnd)
 	}
 
-	if cx > e.GetColOff()+e.GetWidth() {
-		e.IncColOff(1)
+	colStart := e.GetColOff()
+	colEnd := e.GetColOff() + e.GetWidth()
+
+	if cx <= colStart { // scroll left
+		e.IncColOff(cx - (colStart + 1))
 	}
 
-	if cx <= e.GetColOff() {
-		e.IncColOff(-1)
+	if cx > colEnd { // scroll right
+		e.IncColOff(cx - colEnd)
 	}
 
 	// Reset to bounds.
