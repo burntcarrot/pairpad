@@ -21,7 +21,7 @@ var (
 	logger = logrus.New()
 
 	// termbox-based editor.
-	e = editor.NewEditor(false)
+	e = editor.NewEditor(editor.EditorConfig{})
 
 	// The name of the file to load from and save to.
 	fileName string
@@ -74,7 +74,13 @@ func main() {
 		}
 	}
 
-	err = initUI(conn, flags.Scroll)
+	uiConfig := UIConfig{
+		EditorConfig: editor.EditorConfig{
+			ScrollEnabled: flags.Scroll,
+		},
+	}
+
+	err = initUI(conn, uiConfig)
 	if err != nil {
 		// If error has the prefix "pairpad", then it was triggered by an event that wasn't an error, for example, exiting the editor.
 		// It's a hacky solution since the UI returns an error only.

@@ -8,6 +8,10 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+type EditorConfig struct {
+	ScrollEnabled bool
+}
+
 // Editor represents the editor's skeleton.
 // The editor is composed of two components:
 // 1. an editable text area; which acts as the primary interactive area.
@@ -41,8 +45,10 @@ type Editor struct {
 }
 
 // NewEditor returns a new instance of the editor.
-func NewEditor(enableScroll bool) *Editor {
-	return &Editor{ScrollEnabled: enableScroll}
+func NewEditor(conf EditorConfig) *Editor {
+	return &Editor{
+		ScrollEnabled: conf.ScrollEnabled,
+	}
 }
 
 // GetText returns the editor's content.
