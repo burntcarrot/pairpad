@@ -219,7 +219,9 @@ func TestScroll(t *testing.T) {
 				text: []rune("abcdefgh\nijk")},
 		}
 
-		e := NewEditor(EditorConfig{})
+		e := NewEditor(EditorConfig{
+			ScrollEnabled: true,
+		})
 		e.Width = 5
 		e.Height = 5
 
