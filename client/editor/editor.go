@@ -36,11 +36,13 @@ type Editor struct {
 
 	// StatusMsg represents the text displayed in the status bar.
 	StatusMsg string
+
+	ScrollEnabled bool
 }
 
 // NewEditor returns a new instance of the editor.
-func NewEditor() *Editor {
-	return &Editor{}
+func NewEditor(enableScroll bool) *Editor {
+	return &Editor{ScrollEnabled: enableScroll}
 }
 
 // GetText returns the editor's content.
@@ -217,29 +219,31 @@ func (e *Editor) MoveCursor(x, y int) {
 		newCursor = e.calcCursorUp()
 	}
 
-	cx, cy := e.calcCursorXY(newCursor)
+	if e.ScrollEnabled {
+		cx, cy := e.calcCursorXY(newCursor)
 
-	// move the window to adjust for the cursor
-	rowStart := e.GetRowOff()
-	rowEnd := e.GetRowOff() + e.GetHeight() - 1
+		// move the window to adjust for the cursor
+		rowStart := e.GetRowOff()
+		rowEnd := e.GetRowOff() + e.GetHeight() - 1
 
-	if cy <= rowStart { // scroll up
-		e.IncRowOff(cy - rowStart - 1)
-	}
+		if cy <= rowStart { // scroll up
+			e.IncRowOff(cy - rowStart - 1)
+		}
 
-	if cy > rowEnd { // scroll down
-		e.IncRowOff(cy - rowEnd)
-	}
+		if cy > rowEnd { // scroll down
+			e.IncRowOff(cy - rowEnd)
+		}
 
-	colStart := e.GetColOff()
-	colEnd := e.GetColOff() + e.GetWidth()
+		colStart := e.GetColOff()
+		colEnd := e.GetColOff() + e.GetWidth()
 
-	if cx <= colStart { // scroll left
-		e.IncColOff(cx - (colStart + 1))
-	}
+		if cx <= colStart { // scroll left
+			e.IncColOff(cx - (colStart + 1))
+		}
 
-	if cx > colEnd { // scroll right
-		e.IncColOff(cx - colEnd)
+		if cx > colEnd { // scroll right
+			e.IncColOff(cx - colEnd)
+		}
 	}
 
 	// Reset to bounds.

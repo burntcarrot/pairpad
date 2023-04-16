@@ -10,14 +10,14 @@ import (
 // termbox allows us to set any content to individual cells, and hence, the basic building block of the editor is a "cell".
 
 // initUI creates a new editor view and runs the main loop.
-func initUI(conn *websocket.Conn) error {
+func initUI(conn *websocket.Conn, scrollEnabled bool) error {
 	err := termbox.Init()
 	if err != nil {
 		return err
 	}
 	defer termbox.Close()
 
-	e = editor.NewEditor()
+	e = editor.NewEditor(scrollEnabled)
 	e.SetSize(termbox.Size())
 	e.Draw()
 

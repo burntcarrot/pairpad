@@ -19,7 +19,7 @@ func TestAddRune(t *testing.T) {
 		{r: 'd', cursor: 3, expected: []rune{'a', 'b', 'c', 'd', 'e'}},
 	}
 
-	e := NewEditor()
+	e := NewEditor(true)
 
 	for _, tc := range tests {
 		e.Cursor = tc.cursor
@@ -44,7 +44,7 @@ func TestCalcCursorXY(t *testing.T) {
 		{description: "large number", cursor: 100000, expectedX: 5, expectedY: 2},
 	}
 
-	e := NewEditor()
+	e := NewEditor(true)
 	e.Text = []rune("content\ntest")
 
 	for _, tc := range tests {
@@ -146,7 +146,7 @@ func TestMoveCursor(t *testing.T) {
 			text: []rune("\n\n\n\n\n")},
 	}
 
-	e := NewEditor()
+	e := NewEditor(true)
 
 	for _, tc := range tests {
 		e.Cursor = tc.cursor
@@ -219,7 +219,7 @@ func TestScroll(t *testing.T) {
 				text: []rune("abcdefgh\nijk")},
 		}
 
-		e := NewEditor()
+		e := NewEditor(true)
 		e.Width = 5
 		e.Height = 5
 
