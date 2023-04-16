@@ -8,6 +8,10 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+type EditorConfig struct {
+	ScrollEnabled bool
+}
+
 // Editor represents the editor's skeleton.
 // The editor is composed of two components:
 // 1. an editable text area; which acts as the primary interactive area.
@@ -25,16 +29,26 @@ type Editor struct {
 	// Height represents the terminal's width in characters.
 	Height int
 
+	// ColOff is the number of columns between the start of a line and the left of the editor window
+	ColOff int
+
+	// RowOff is the number of rows between the beginning of the text and the top of the editor window
+	RowOff int
+
 	// ShowMsg acts like a switch for the status bar.
 	ShowMsg bool
 
 	// StatusMsg represents the text displayed in the status bar.
 	StatusMsg string
+
+	ScrollEnabled bool
 }
 
 // NewEditor returns a new instance of the editor.
-func NewEditor() *Editor {
-	return &Editor{}
+func NewEditor(conf EditorConfig) *Editor {
+	return &Editor{
+		ScrollEnabled: conf.ScrollEnabled,
+	}
 }
 
 // GetText returns the editor's content.
@@ -80,6 +94,28 @@ func (e *Editor) SetSize(w, h int) {
 	e.Height = h
 }
 
+// GetRowOff returns the vertical offset of the editor window from the start of the text.
+func (e *Editor) GetRowOff() int {
+	return e.RowOff
+}
+
+// GetColOff returns the horizontal offset of the editor window from the start of a line.
+func (e *Editor) GetColOff() int {
+	return e.ColOff
+}
+
+// IncRowOff increments the vertical offset of the editor window from the start of the
+// text by inc.
+func (e *Editor) IncRowOff(inc int) {
+	e.RowOff += inc
+}
+
+// IncColOff increments the horizontal offset of the editor window from the start of a
+// line by inc.
+func (e *Editor) IncColOff(inc int) {
+	e.ColOff += inc
+}
+
 // AddRune adds a rune to the editor's existing content and updates the cursor position.
 func (e *Editor) AddRune(r rune) {
 	if e.Cursor == 0 {
@@ -90,25 +126,42 @@ func (e *Editor) AddRune(r rune) {
 	} else {
 		e.Text = append(e.Text[:e.Cursor], r)
 	}
-	e.Cursor++
+	e.MoveCursor(1, 0)
 }
 
 // Draw updates the UI by setting cells with the editor's content.
 func (e *Editor) Draw() {
 	_ = termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 	cx, cy := e.calcCursorXY(e.Cursor)
+
+	// draw cursor x position relative to row offset
+	if cx-e.GetColOff() > 0 {
+		cx -= e.GetColOff()
+	}
+
+	// draw cursor y position relative to row offset
+	if cy-e.GetRowOff() > 0 {
+		cy -= e.GetRowOff()
+	}
+
 	termbox.SetCursor(cx-1, cy-1)
+	// find the starting and ending row of the termbox window.
+	yStart := e.GetRowOff()
+	yEnd := yStart + e.GetHeight() - 1 // -1 accounts for the status bar
+
+	// find the starting ending column of the termbox window.
+	xStart := e.GetColOff()
 
 	x, y := 0, 0
-	for i := 0; i < len(e.Text); i++ {
+	for i := 0; i < len(e.Text) && y < yEnd; i++ {
 		if e.Text[i] == rune('\n') {
 			x = 0
 			y++
 		} else {
-			if x < e.Width {
-				// Set cell content.
-				termbox.SetCell(x, y, e.Text[i], termbox.ColorDefault, termbox.ColorDefault)
-			}
+			// Set cell content. setX and setY account for the window offset.
+			setY := y - yStart
+			setX := x - xStart
+			termbox.SetCell(setX, setY, e.Text[i], termbox.ColorDefault, termbox.ColorDefault)
 
 			// Update x by rune's width.
 			x = x + runewidth.RuneWidth(e.Text[i])
@@ -152,7 +205,9 @@ func (e *Editor) showPositions() {
 	}
 }
 
-// MoveCursor updates the cursor position.
+// MoveCursor updates the cursor position horizontally by a given x increment, and
+// vertically by one line in the direction indicated by y. The positive directions are
+// right and down, respectively.
 // This is used by the UI layer, where it updates the cursor position on keypresses.
 func (e *Editor) MoveCursor(x, y int) {
 	if len(e.Text) == 0 && e.Cursor == 0 {
@@ -168,6 +223,33 @@ func (e *Editor) MoveCursor(x, y int) {
 
 	if y < 0 {
 		newCursor = e.calcCursorUp()
+	}
+
+	if e.ScrollEnabled {
+		cx, cy := e.calcCursorXY(newCursor)
+
+		// move the window to adjust for the cursor
+		rowStart := e.GetRowOff()
+		rowEnd := e.GetRowOff() + e.GetHeight() - 1
+
+		if cy <= rowStart { // scroll up
+			e.IncRowOff(cy - rowStart - 1)
+		}
+
+		if cy > rowEnd { // scroll down
+			e.IncRowOff(cy - rowEnd)
+		}
+
+		colStart := e.GetColOff()
+		colEnd := e.GetColOff() + e.GetWidth()
+
+		if cx <= colStart { // scroll left
+			e.IncColOff(cx - (colStart + 1))
+		}
+
+		if cx > colEnd { // scroll right
+			e.IncColOff(cx - colEnd)
+		}
 	}
 
 	// Reset to bounds.
@@ -290,7 +372,7 @@ func (e *Editor) calcCursorDown() int {
 	}
 }
 
-// calcCursorXY calculates and returns the cursor position from the index obtained from the content.
+// calcCursorXY returns the x and y coordinates of the given cursor index.
 func (e *Editor) calcCursorXY(index int) (int, int) {
 	x := 1
 	y := 1

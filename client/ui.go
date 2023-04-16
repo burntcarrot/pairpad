@@ -6,18 +6,22 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+type UIConfig struct {
+	EditorConfig editor.EditorConfig
+}
+
 // TUI is built using termbox-go.
 // termbox allows us to set any content to individual cells, and hence, the basic building block of the editor is a "cell".
 
-// UI creates a new editor view and runs the main loop.
-func UI(conn *websocket.Conn) error {
+// initUI creates a new editor view and runs the main loop.
+func initUI(conn *websocket.Conn, conf UIConfig) error {
 	err := termbox.Init()
 	if err != nil {
 		return err
 	}
 	defer termbox.Close()
 
-	e = editor.NewEditor()
+	e = editor.NewEditor(conf.EditorConfig)
 	e.SetSize(termbox.Size())
 	e.Draw()
 

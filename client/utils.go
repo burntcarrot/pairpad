@@ -23,6 +23,7 @@ type Flags struct {
 	Login  bool
 	File   string
 	Debug  bool
+	Scroll bool
 }
 
 // parseFlags parses command-line flags.
@@ -32,6 +33,7 @@ func parseFlags() Flags {
 	enableDebug := flag.Bool("debug", false, "Enable debugging mode to show more verbose logs")
 	enableLogin := flag.Bool("login", false, "Enable the login prompt for the server")
 	file := flag.String("file", "", "The file to load the pairpad content from")
+	enableScroll := flag.Bool("scroll", true, "Enable scrolling with the cursor")
 
 	flag.Parse()
 
@@ -41,6 +43,7 @@ func parseFlags() Flags {
 		Debug:  *enableDebug,
 		Login:  *enableLogin,
 		File:   *file,
+		Scroll: *enableScroll,
 	}
 }
 

@@ -19,7 +19,7 @@ func TestAddRune(t *testing.T) {
 		{r: 'd', cursor: 3, expected: []rune{'a', 'b', 'c', 'd', 'e'}},
 	}
 
-	e := NewEditor()
+	e := NewEditor(EditorConfig{})
 
 	for _, tc := range tests {
 		e.Cursor = tc.cursor
@@ -44,7 +44,7 @@ func TestCalcCursorXY(t *testing.T) {
 		{description: "large number", cursor: 100000, expectedX: 5, expectedY: 2},
 	}
 
-	e := NewEditor()
+	e := NewEditor(EditorConfig{})
 	e.Text = []rune("content\ntest")
 
 	for _, tc := range tests {
@@ -82,6 +82,7 @@ func TestMoveCursor(t *testing.T) {
 			text: []rune("foo\n")},
 		{description: "move forward (out of bounds)", cursor: 3, x: 2, expectedCursor: 4,
 			text: []rune("foo\n")},
+
 		// test vertical movement
 		{description: "move up", cursor: 6, y: -1, expectedCursor: 2,
 			text: []rune("foo\nbar")},
@@ -145,7 +146,7 @@ func TestMoveCursor(t *testing.T) {
 			text: []rune("\n\n\n\n\n")},
 	}
 
-	e := NewEditor()
+	e := NewEditor(EditorConfig{})
 
 	for _, tc := range tests {
 		e.Cursor = tc.cursor
@@ -157,6 +158,101 @@ func TestMoveCursor(t *testing.T) {
 
 		if !cmp.Equal(got, expected) {
 			t.Errorf("(%s) got != expected, diff: %v\n", tc.description, cmp.Diff(got, expected))
+		}
+	}
+}
+
+func TestScroll(t *testing.T) {
+	{
+		tests := []struct {
+			description    string
+			x              int
+			y              int
+			colOff         int
+			expectedColOff int
+			rowOff         int
+			expectedRowOff int
+			cursor         int
+			expectedCursor int
+			text           []rune
+		}{
+			{description: "scroll down",
+				y:      1,
+				colOff: 0, expectedColOff: 0,
+				rowOff: 0, expectedRowOff: 1,
+				cursor: 6, expectedCursor: 8,
+				text: []rune("a\nb\nc\nd\ne")},
+
+			{description: "scroll up",
+				y:      -1,
+				colOff: 0, expectedColOff: 0,
+				rowOff: 1, expectedRowOff: 0,
+				cursor: 2, expectedCursor: 0,
+				text: []rune("a\nb\nc\nd\ne")},
+
+			{description: "scroll right",
+				x:      1,
+				colOff: 0, expectedColOff: 1,
+				rowOff: 0, expectedRowOff: 0,
+				cursor: 4, expectedCursor: 5,
+				text: []rune("abcde")},
+
+			{description: "scroll left",
+				x:      -1,
+				colOff: 1, expectedColOff: 0,
+				rowOff: 0, expectedRowOff: 0,
+				cursor: 1, expectedCursor: 0,
+				text: []rune("abcde")},
+
+			{description: "horizontal jump backwards",
+				x:      1,
+				colOff: 4, expectedColOff: 0,
+				rowOff: 0, expectedRowOff: 0,
+				cursor: 8, expectedCursor: 9,
+				text: []rune("abcdefgh\nijk")},
+
+			{description: "horizontal jump forwards",
+				x:      -1,
+				colOff: 0, expectedColOff: 4,
+				rowOff: 0, expectedRowOff: 0,
+				cursor: 9, expectedCursor: 8,
+				text: []rune("abcdefgh\nijk")},
+		}
+
+		e := NewEditor(EditorConfig{
+			ScrollEnabled: true,
+		})
+		e.Width = 5
+		e.Height = 5
+
+		for _, tc := range tests {
+			e.ColOff = tc.colOff
+			e.RowOff = tc.rowOff
+			e.Cursor = tc.cursor
+			e.Text = tc.text
+
+			e.MoveCursor(tc.x, tc.y)
+
+			gotCursor := e.Cursor
+			expectedCursor := tc.expectedCursor
+
+			if !cmp.Equal(gotCursor, expectedCursor) {
+				t.Errorf("(%s) Wrong cursor: got != expected, diff: %v\n", tc.description, cmp.Diff(gotCursor, expectedCursor))
+			}
+
+			gotRowOff := e.RowOff
+			expectedRowOff := tc.expectedRowOff
+
+			if !cmp.Equal(gotRowOff, expectedRowOff) {
+				t.Errorf("(%s) Wrong row offset: got != expected, diff: %v\n", tc.description, cmp.Diff(gotRowOff, expectedRowOff))
+			}
+
+			gotColOff := e.ColOff
+			expectedColOff := tc.expectedColOff
+
+			if !cmp.Equal(gotColOff, expectedColOff) {
+				t.Errorf("(%s) Wrong col offset: got != expected, diff: %v\n", tc.description, cmp.Diff(gotColOff, expectedColOff))
+			}
 		}
 	}
 }
