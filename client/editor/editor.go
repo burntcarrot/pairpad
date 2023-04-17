@@ -41,9 +41,14 @@ type Editor struct {
 	// StatusMsg represents the text displayed in the status bar.
 	StatusMsg string
 
+	// Users is an array of the names of all users connected to the server.
 	Users []string
 
+	// ScrollEnabled determines whether or not the user can scroll past the initial editor window. It is set by the EditorConfig
 	ScrollEnabled bool
+
+	// IsConnected shows whether the editor is currently connected to the server.
+	IsConnected bool
 }
 
 // NewEditor returns a new instance of the editor.
@@ -167,8 +172,7 @@ func (e *Editor) Draw() {
 	termbox.Flush()
 }
 
-// SetStatusBar sets the message (e.StatusMsg) in the editor's status bar.
-// The message disappears automatically after 5 seconds, in order to simulate the "popup" effect.
+// ShowStatusMsg shows the message (e.StatusMsg) in the editor's status bar for 5 seconds.
 func (e *Editor) ShowStatusMsg() {
 	e.ShowMsg = true
 
@@ -180,6 +184,12 @@ func (e *Editor) ShowStatusMsg() {
 	_ = time.AfterFunc(5*time.Second, func() {
 		e.ShowMsg = false
 	})
+
+	if e.IsConnected {
+		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorGreen)
+	} else {
+		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorRed)
+	}
 }
 
 // SetStatusBar shows all status and debug information on the bottom line of the editor.
@@ -195,6 +205,12 @@ func (e *Editor) SetStatusBar() {
 
 	for i, r := range []rune(str) {
 		termbox.SetCell(i, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
+	}
+
+	if e.IsConnected {
+		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorGreen)
+	} else {
+		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorRed)
 	}
 }
 

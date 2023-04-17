@@ -24,6 +24,7 @@ func initUI(conn *websocket.Conn, conf UIConfig) error {
 	e = editor.NewEditor(conf.EditorConfig)
 	e.SetSize(termbox.Size())
 	e.Draw()
+	e.IsConnected = true
 
 	err = mainLoop(conn)
 	if err != nil {

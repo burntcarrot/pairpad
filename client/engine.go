@@ -175,6 +175,7 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	if err != nil {
 		e.StatusMsg = "lost connection!"
 		e.ShowStatusMsg()
+		e.IsConnected = false
 	}
 }
 
