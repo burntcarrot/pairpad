@@ -41,6 +41,8 @@ type Editor struct {
 	// StatusMsg represents the text displayed in the status bar.
 	StatusMsg string
 
+	Users []string
+
 	ScrollEnabled bool
 }
 
@@ -156,9 +158,9 @@ func (e *Editor) Draw() {
 	}
 
 	if e.ShowMsg {
-		e.SetStatusBar()
+		e.ShowStatusMsg()
 	} else {
-		e.showPositions()
+		e.SetStatusBar()
 	}
 
 	// Flush back buffer!
@@ -167,7 +169,7 @@ func (e *Editor) Draw() {
 
 // SetStatusBar sets the message (e.StatusMsg) in the editor's status bar.
 // The message disappears automatically after 5 seconds, in order to simulate the "popup" effect.
-func (e *Editor) SetStatusBar() {
+func (e *Editor) ShowStatusMsg() {
 	e.ShowMsg = true
 
 	for i, r := range []rune(e.StatusMsg) {
@@ -180,12 +182,16 @@ func (e *Editor) SetStatusBar() {
 	})
 }
 
-// showPositions shows the cursor positions with other details.
-func (e *Editor) showPositions() {
+// SetStatusBar shows all status and debug information on the bottom line of the editor.
+func (e *Editor) SetStatusBar() {
 	x, y := e.calcCursorXY(e.Cursor)
 
 	// Construct message for debugging.
-	str := fmt.Sprintf("x=%d, y=%d, cursor=%d, len(text)=%d", x, y, e.Cursor, len(e.Text))
+	var str string
+	for _, user := range e.Users {
+		str += user + " "
+	}
+	str += "|" + fmt.Sprintf(" x=%d, y=%d, cursor=%d, len(text)=%d", x, y, e.Cursor, len(e.Text))
 
 	for i, r := range []rune(str) {
 		termbox.SetCell(i, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)

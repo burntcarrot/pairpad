@@ -9,7 +9,7 @@ import (
 type Message struct {
 	Username string `json:"username"`
 
-	// Text represents the body of the message. This is currently used for joining messages, and the siteID.
+	// Text represents the body of the message. This is currently used for joining messages, the siteID, and the list of active users.
 	Text string `json:"text"`
 
 	// Type represents the message type.
@@ -28,15 +28,17 @@ type Message struct {
 // MessageType represents the type of the message.
 type MessageType string
 
-// Currently, pairpad supports 4 message types:
+// Currently, pairpad supports 5 message types:
 // - docSync (for syncing documents)
 // - docReq (for requesting documents)
 // - SiteID (for generating site IDs)
 // - join (for joining messages)
+// - users (for the list of active users)
 
 const (
 	DocSyncMessage MessageType = "docSync"
 	DocReqMessage  MessageType = "docReq"
 	SiteIDMessage  MessageType = "SiteID"
 	JoinMessage    MessageType = "join"
+	UsersMessage   MessageType = "users"
 )

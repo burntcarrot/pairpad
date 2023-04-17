@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/burntcarrot/pairpad/commons"
 	"github.com/burntcarrot/pairpad/crdt"
@@ -36,13 +37,13 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			if err != nil {
 				e.StatusMsg = "Failed to save to " + fileName
 				logrus.Errorf("failed to save to %s", fileName)
-				e.SetStatusBar()
+				e.ShowStatusMsg()
 				return err
 			}
 
 			// Set the status bar.
 			e.StatusMsg = "Saved document to " + fileName
-			e.SetStatusBar()
+			e.ShowStatusMsg()
 
 		// The default key for loading content from a file is Ctrl+L.
 		case termbox.KeyCtrlL:
@@ -50,11 +51,11 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 				logger.Log(logrus.InfoLevel, "LOADING DOCUMENT")
 				newDoc, err := crdt.Load(fileName)
 				e.StatusMsg = "Loading " + fileName
-				e.SetStatusBar()
+				e.ShowStatusMsg()
 				if err != nil {
 					e.StatusMsg = "Failed to load " + fileName
 					logrus.Errorf("failed to load file %s", fileName)
-					e.SetStatusBar()
+					e.ShowStatusMsg()
 					return err
 				}
 				doc = newDoc
@@ -66,7 +67,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 				_ = conn.WriteJSON(&docMsg)
 			} else {
 				e.StatusMsg = "No file to load!"
-				e.SetStatusBar()
+				e.ShowStatusMsg()
 			}
 
 		// The default keys for moving left inside the text area are the left arrow key, and Ctrl+B (move backward).
@@ -173,7 +174,7 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	err := conn.WriteJSON(msg)
 	if err != nil {
 		e.StatusMsg = "lost connection!"
-		e.SetStatusBar()
+		e.ShowStatusMsg()
 	}
 }
 
@@ -215,7 +216,11 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 
 	case commons.JoinMessage:
 		e.StatusMsg = fmt.Sprintf("%s has joined the session!", msg.Username)
-		e.SetStatusBar()
+		e.ShowStatusMsg()
+
+	case commons.UsersMessage:
+		splitUsers := strings.Split(msg.Text, ",")
+		e.Users = splitUsers
 
 	default:
 		switch msg.Operation.Type {

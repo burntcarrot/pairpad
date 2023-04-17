@@ -120,6 +120,8 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	updateUsers()
+
 	// read messages from the connection and send to channel to broadcast
 	for {
 		var msg commons.Message
@@ -155,6 +157,7 @@ func closeConn(clientID uuid.UUID) {
 	}
 	color.Red("Closing connection with username: %v\n", activeClients[clientID].Username)
 	delete(activeClients, clientID)
+	updateUsers()
 }
 
 // handleMsg listens to the messageChan channel and broadcasts messages to other clients.
@@ -172,6 +175,7 @@ func handleMsg() {
 			activeClients[msg.ID] = clientInfo
 
 			color.Green("%s >> %s %s (ID: %s)\n", t, msg.Username, msg.Text, msg.ID)
+			updateUsers()
 		} else if msg.Type == "operation" {
 			color.Green("operation >> %+v from ID=%s\n", msg.Operation, msg.ID)
 		} else {
@@ -187,8 +191,7 @@ func handleMsg() {
 				err := clientInfo.Conn.WriteJSON(msg)
 				if err != nil {
 					color.Red("Error sending message to client: %v\n", err)
-					clientInfo.Conn.Close()
-					delete(activeClients, id)
+					closeConn(id)
 				}
 			}
 		}
@@ -197,14 +200,35 @@ func handleMsg() {
 
 func handleSync() {
 	for {
-		// Receive document response.
 		syncMsg := <-syncChan
-		color.Cyan("got syncMsg, len(document) = %d\n", len(syncMsg.Document.Characters))
-		for UUID, clientInfo := range activeClients {
-			if UUID != syncMsg.ID {
-				color.Cyan("sending syncMsg to %s", syncMsg.ID)
-				_ = clientInfo.Conn.WriteJSON(syncMsg)
+		switch syncMsg.Type {
+		case commons.DocSyncMessage:
+			// Receive document response.
+			color.Cyan("got syncMsg, len(document) = %d\n", len(syncMsg.Document.Characters))
+			for UUID, clientInfo := range activeClients {
+				if UUID != syncMsg.ID {
+					color.Cyan("sending syncMsg to %s", syncMsg.ID)
+					if err := clientInfo.Conn.WriteJSON(syncMsg); err != nil {
+						color.Red("failed to send syncMsg to %s", UUID)
+					}
+				}
+			}
+		case commons.UsersMessage:
+			for UUID, clientInfo := range activeClients {
+				if err := clientInfo.Conn.WriteJSON(syncMsg); err != nil {
+					color.Red("failed to send userMsg to %s", UUID)
+				}
 			}
 		}
 	}
+}
+
+func updateUsers() {
+	var users string
+	for _, ci := range activeClients {
+		users += ci.Username + ","
+	}
+
+	syncChan <- commons.Message{Text: users, Type: commons.UsersMessage}
+	// return commons.Message{Text: users, Type: commons.UsersMessage}
 }
