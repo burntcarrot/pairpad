@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Document is composed of characters.
@@ -23,6 +24,8 @@ type Character struct {
 }
 
 var (
+	mu sync.Mutex
+
 	// SiteID is a globally unique variable used with the local clock to generate identifiers for characters in the document.
 	SiteID = 0
 
@@ -256,7 +259,9 @@ func (doc *Document) IntegrateInsert(char, charPrev, charNext Character) (*Docum
 // GenerateInsert generates a character for a given value.
 func (doc *Document) GenerateInsert(position int, value string) (*Document, error) {
 	// Increment local clock.
+	mu.Lock()
 	LocalClock++
+	mu.Unlock()
 
 	// Get previous and next characters.
 	charPrev := IthVisible(*doc, position-1)
