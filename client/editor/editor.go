@@ -116,19 +116,6 @@ func (e *Editor) IncColOff(inc int) {
 	e.ColOff += inc
 }
 
-// AddRune adds a rune to the editor's existing content and updates the cursor position.
-func (e *Editor) AddRune(r rune) {
-	if e.Cursor == 0 {
-		e.Text = append([]rune{r}, e.Text...)
-	} else if e.Cursor < len(e.Text) {
-		e.Text = append(e.Text[:e.Cursor], e.Text[e.Cursor-1:]...)
-		e.Text[e.Cursor] = r
-	} else {
-		e.Text = append(e.Text[:e.Cursor], r)
-	}
-	e.MoveCursor(1, 0)
-}
-
 // Draw updates the UI by setting cells with the editor's content.
 func (e *Editor) Draw() {
 	_ = termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)

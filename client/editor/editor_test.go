@@ -6,30 +6,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestAddRune(t *testing.T) {
-	tests := []struct {
-		r        rune
-		cursor   int
-		expected []rune
-	}{
-		{r: 'a', cursor: 0, expected: []rune{'a'}},
-		{r: 'b', cursor: 1, expected: []rune{'a', 'b'}},
-		{r: 'c', cursor: 2, expected: []rune{'a', 'b', 'c'}},
-		{r: 'e', cursor: 3, expected: []rune{'a', 'b', 'c', 'e'}},
-		{r: 'd', cursor: 3, expected: []rune{'a', 'b', 'c', 'd', 'e'}},
-	}
-
-	e := NewEditor(EditorConfig{})
-
-	for _, tc := range tests {
-		e.Cursor = tc.cursor
-		e.AddRune(tc.r)
-		if !cmp.Equal(e.GetText(), tc.expected) {
-			t.Errorf("got != expected, diff: %v\n", cmp.Diff(e.Text, tc.expected))
-		}
-	}
-}
-
 func TestCalcCursorXY(t *testing.T) {
 	tests := []struct {
 		description string

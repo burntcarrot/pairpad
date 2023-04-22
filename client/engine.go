@@ -145,16 +145,14 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	case OperationInsert:
 		logger.Infof("LOCAL INSERT: %s at cursor position %v\n", ch, e.Cursor)
 
-		r := []rune(ch)
-		e.AddRune(r[0])
-
-		text, err := doc.Insert(e.Cursor, ch)
+		text, err := doc.Insert(e.Cursor+1, ch)
 		if err != nil {
 			e.SetText(text)
 			logger.Errorf("CRDT error: %v\n", err)
 		}
 		e.SetText(text)
 
+		e.MoveCursor(1, 0)
 		msg = commons.Message{Type: "operation", Operation: commons.Operation{Type: "insert", Position: e.Cursor, Value: ch}}
 
 	case OperationDelete:
