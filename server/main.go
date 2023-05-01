@@ -14,10 +14,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type clientInfo struct {
+type client struct {
 	Username string `json:"username"`
 	SiteID   string `json:"siteID"`
 	Conn     *websocket.Conn
+	writeMu  sync.Mutex
+	readMu   sync.Mutex
 }
 
 var (
@@ -31,7 +33,7 @@ var (
 	upgrader = websocket.Upgrader{}
 
 	// Map to store active client connections.
-	activeClients = make(map[uuid.UUID]clientInfo)
+	activeClients = make(map[uuid.UUID]*client)
 
 	// Channel for client messages.
 	messageChan = make(chan commons.Message)
@@ -89,29 +91,29 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 	siteID++
 
 	// Add the client to the map of active clients.
-	c := clientInfo{Conn: conn, SiteID: strconv.Itoa(siteID)}
-	activeClients[clientID] = c
+	client := &client{Conn: conn, SiteID: strconv.Itoa(siteID)}
+	activeClients[clientID] = client
 	mu.Unlock()
 
 	color.Yellow("New client joining. Total active clients: %d\n", len(activeClients))
 
 	color.Magenta("activeClients after SiteID generation: %+v", activeClients)
-	color.Yellow("Assigning siteID: %s", c.SiteID)
+	color.Yellow("Assigning siteID: %s", client.SiteID)
 
-	// Generate a Site ID message.
-	siteIDMsg := commons.Message{Type: commons.SiteIDMessage, Text: c.SiteID, ID: clientID}
-	if err := conn.WriteJSON(siteIDMsg); err != nil {
+	// Generate and send a Site ID message.
+	siteIDMsg := commons.Message{Type: commons.SiteIDMessage, Text: client.SiteID, ID: clientID}
+	if err := client.send(siteIDMsg); err != nil {
 		color.Red("ERROR: didn't send siteID message")
 		closeConn(clientID)
 		return
 	}
 
-	// send a document request to an existing client
-	for id, clientInfo := range activeClients {
+	// Send a document request to an existing client
+	for id, client := range activeClients {
 		if id != clientID {
 			msg := commons.Message{Type: commons.DocReqMessage, ID: clientID}
 			color.Cyan("sending docReq to %s on behalf of %s", id, clientID)
-			err = clientInfo.Conn.WriteJSON(&msg)
+			err = client.send(&msg)
 			if err != nil {
 				color.Red("Failed to send docReq: %v\n", err)
 				continue
@@ -122,12 +124,14 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 
 	updateUsers()
 
-	// read messages from the connection and send to channel to broadcast
+	// Read messages from the connection and send to channel to broadcast
 	for {
 		var msg commons.Message
 
 		// Read message from the connection.
-		err := conn.ReadJSON(&msg)
+		client.readMu.Lock()
+		err := client.Conn.ReadJSON(&msg)
+		client.readMu.Unlock()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				color.Red("Failed to read message from client %s: %v", activeClients[clientID].Username, err)
@@ -135,6 +139,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 			closeConn(clientID)
 			return
 		}
+		color.Blue("got msg %v from %v", msg, client.Username)
 
 		// Set message ID
 		msg.ID = clientID
@@ -169,10 +174,10 @@ func handleMsg() {
 		// Log each message to stdout.
 		t := time.Now().Format(time.ANSIC)
 		if msg.Type == commons.JoinMessage {
-			// Set the username received from the client to the clientInfo present in activeClients.
-			clientInfo := activeClients[msg.ID]
-			clientInfo.Username = msg.Username
-			activeClients[msg.ID] = clientInfo
+			// Assign the received username to the client present in activeClients.
+			client := activeClients[msg.ID]
+			client.Username = msg.Username
+			activeClients[msg.ID] = client
 
 			color.Green("%s >> %s %s (ID: %s)\n", t, msg.Username, msg.Text, msg.ID)
 			updateUsers()
@@ -183,12 +188,12 @@ func handleMsg() {
 		}
 
 		// Broadcast to all active clients.
-		for id, clientInfo := range activeClients {
+		for id, client := range activeClients {
 			// Check the UUID to prevent sending messages to their origin.
 			if id != msg.ID {
 				// Write JSON message.
 				color.Magenta("writing message to: %s, msg: %+v\n", id, msg)
-				err := clientInfo.Conn.WriteJSON(msg)
+				err := client.send(msg)
 				if err != nil {
 					color.Red("Error sending message to client: %v\n", err)
 					closeConn(id)
@@ -198,24 +203,24 @@ func handleMsg() {
 	}
 }
 
+// handleSync reads from the syncChan and sends the message to the appropriate user(s).
 func handleSync() {
 	for {
 		syncMsg := <-syncChan
 		switch syncMsg.Type {
 		case commons.DocSyncMessage:
 			// Receive document response.
-			color.Cyan("got syncMsg, len(document) = %d\n", len(syncMsg.Document.Characters))
-			for UUID, clientInfo := range activeClients {
+			for UUID, client := range activeClients {
 				if UUID != syncMsg.ID {
 					color.Cyan("sending syncMsg to %s", syncMsg.ID)
-					if err := clientInfo.Conn.WriteJSON(syncMsg); err != nil {
+					if err := client.send(syncMsg); err != nil {
 						color.Red("failed to send syncMsg to %s", UUID)
 					}
 				}
 			}
 		case commons.UsersMessage:
-			for UUID, clientInfo := range activeClients {
-				if err := clientInfo.Conn.WriteJSON(syncMsg); err != nil {
+			for UUID, client := range activeClients {
+				if err := client.send(syncMsg); err != nil {
 					color.Red("failed to send userMsg to %s", UUID)
 				}
 			}
@@ -223,6 +228,17 @@ func handleSync() {
 	}
 }
 
+// send sends a message over the client Conn while protecting from
+// concurrent writes.
+func (c *client) send(v interface{}) error {
+	c.writeMu.Lock()
+	err := c.Conn.WriteJSON(v)
+	c.writeMu.Unlock()
+	return err
+}
+
+// updateUsers sends a message containing the names of all active clients
+// to the syncChan.
 func updateUsers() {
 	var users string
 	for _, ci := range activeClients {
