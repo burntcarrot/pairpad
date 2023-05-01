@@ -139,7 +139,6 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 			closeConn(clientID)
 			return
 		}
-		color.Blue("got msg %v from %v", msg, client.Username)
 
 		// Set message ID
 		msg.ID = clientID

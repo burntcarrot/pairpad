@@ -2,9 +2,9 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/burntcarrot/pairpad/commons"
 	"github.com/burntcarrot/pairpad/crdt"
@@ -35,29 +35,26 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			// Save the CRDT to a file.
 			err := crdt.Save(fileName, &doc)
 			if err != nil {
-				e.StatusMsg = "Failed to save to " + fileName
-				logrus.Errorf("failed to save to %s", fileName)
-				e.ShowStatusMsg()
+				logrus.Errorf("Failed to save to %s", fileName)
+				e.StatusChan <- "Failed to save to " + fileName
 				return err
 			}
 
 			// Set the status bar.
-			e.StatusMsg = "Saved document to " + fileName
-			e.ShowStatusMsg()
+			e.StatusChan <- "Saved document to " + fileName
 
 		// The default key for loading content from a file is Ctrl+L.
 		case termbox.KeyCtrlL:
 			if fileName != "" {
 				logger.Log(logrus.InfoLevel, "LOADING DOCUMENT")
 				newDoc, err := crdt.Load(fileName)
-				e.StatusMsg = "Loading " + fileName
-				e.ShowStatusMsg()
 				if err != nil {
-					e.StatusMsg = "Failed to load " + fileName
 					logrus.Errorf("failed to load file %s", fileName)
-					e.ShowStatusMsg()
+					e.StatusChan <- "Failed to load " + fileName
 					return err
 				}
+				// e.ShowStatusMsg("Loading " + fileName)
+				e.StatusChan <- "Loading " + fileName
 				doc = newDoc
 				e.SetX(0)
 				e.SetText(crdt.Content(doc))
@@ -66,8 +63,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 				docMsg := commons.Message{Type: commons.DocSyncMessage, Document: doc}
 				_ = conn.WriteJSON(&docMsg)
 			} else {
-				e.StatusMsg = "No file to load!"
-				e.ShowStatusMsg()
+				e.StatusChan <- "No file to load!"
 			}
 
 		// The default keys for moving left inside the text area are the left arrow key, and Ctrl+B (move backward).
@@ -171,11 +167,12 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	}
 
 	// Send the message.
-	err := conn.WriteJSON(msg)
-	if err != nil {
-		e.StatusMsg = "lost connection!"
-		e.ShowStatusMsg()
-		e.IsConnected = false
+	if e.IsConnected {
+		err := conn.WriteJSON(msg)
+		if err != nil {
+			e.IsConnected = false
+			e.StatusChan <- "lost connection!"
+		}
 	}
 }
 
@@ -199,6 +196,7 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 		logger.Infof("DOCSYNC RECEIVED, updating local doc %+v\n", msg.Document)
 
 		doc = msg.Document
+		e.SetText(crdt.Content(doc))
 
 	case commons.DocReqMessage:
 		logger.Infof("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
@@ -216,12 +214,10 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 		logger.Infof("SITE ID %v, INTENDED SITE ID: %v", crdt.SiteID, siteID)
 
 	case commons.JoinMessage:
-		e.StatusMsg = fmt.Sprintf("%s has joined the session!", msg.Username)
-		e.ShowStatusMsg()
+		e.StatusChan <- msg.Username + " has joined the session!"
 
 	case commons.UsersMessage:
-		splitUsers := strings.Split(msg.Text, ",")
-		e.Users = splitUsers
+		e.Users = strings.Split(msg.Text, ",")
 
 	default:
 		switch msg.Operation.Type {
@@ -269,6 +265,8 @@ func getMsgChan(conn *websocket.Conn) chan commons.Message {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					logger.Errorf("websocket error: %v", err)
 				}
+				e.IsConnected = false
+				e.StatusChan <- "lost connection!"
 				break
 			}
 
@@ -280,4 +278,24 @@ func getMsgChan(conn *websocket.Conn) chan commons.Message {
 		}
 	}()
 	return messageChan
+}
+
+// handleStatusMsg asynchronously waits for messages from e.StatusChan and
+// displays the message when it arrives.
+func handleStatusMsg() {
+	go func() {
+		for {
+			select {
+			case msg := <-e.StatusChan:
+				e.StatusMsg = msg
+				logger.Infof("got status message: ", e.StatusMsg)
+
+				e.ShowMsg = true
+				e.Draw()
+				time.Sleep(3 * time.Second)
+				e.ShowMsg = false
+				e.Draw()
+			}
+		}
+	}()
 }

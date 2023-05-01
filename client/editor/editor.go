@@ -2,7 +2,6 @@ package editor
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/mattn/go-runewidth"
 	"github.com/nsf/termbox-go"
@@ -49,12 +48,31 @@ type Editor struct {
 
 	// IsConnected shows whether the editor is currently connected to the server.
 	IsConnected bool
+
+	// A channel for sending status messages
+	StatusChan chan string
+}
+
+var userColors = []termbox.Attribute{
+	termbox.ColorGreen,
+	termbox.ColorYellow,
+	termbox.ColorBlue,
+	termbox.ColorMagenta,
+	termbox.ColorCyan,
+	termbox.ColorLightYellow,
+	termbox.ColorLightMagenta,
+	termbox.ColorLightGreen,
+	termbox.ColorLightRed,
+	termbox.ColorRed,
 }
 
 // NewEditor returns a new instance of the editor.
 func NewEditor(conf EditorConfig) *Editor {
+	statusChan := make(chan string, 20)
+
 	return &Editor{
 		ScrollEnabled: conf.ScrollEnabled,
+		StatusChan:    statusChan,
 	}
 }
 
@@ -139,6 +157,7 @@ func (e *Editor) Draw() {
 	}
 
 	termbox.SetCursor(cx-1, cy-1)
+
 	// find the starting and ending row of the termbox window.
 	yStart := e.GetRowOff()
 	yEnd := yStart + e.GetHeight() - 1 // -1 accounts for the status bar
@@ -162,29 +181,21 @@ func (e *Editor) Draw() {
 		}
 	}
 
-	if e.ShowMsg {
-		e.ShowStatusMsg()
-	} else {
-		e.SetStatusBar()
-	}
+	e.DrawStatusBar()
 
 	// Flush back buffer!
 	termbox.Flush()
 }
 
-// ShowStatusMsg shows the message (e.StatusMsg) in the editor's status bar for 5 seconds.
-func (e *Editor) ShowStatusMsg() {
-	e.ShowMsg = true
-
-	for i, r := range []rune(e.StatusMsg) {
-		termbox.SetCell(i, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
+// DrawStatusBar shows all status and debug information on the bottom line of the editor.
+func (e *Editor) DrawStatusBar() {
+	if e.ShowMsg {
+		e.DrawStatusMsg()
+	} else {
+		e.DrawInfoBar()
 	}
 
-	// Toggle showMsg to false to hide the message.
-	_ = time.AfterFunc(5*time.Second, func() {
-		e.ShowMsg = false
-	})
-
+	// Render connection indicator
 	if e.IsConnected {
 		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorGreen)
 	} else {
@@ -192,26 +203,36 @@ func (e *Editor) ShowStatusMsg() {
 	}
 }
 
-// SetStatusBar shows all status and debug information on the bottom line of the editor.
-func (e *Editor) SetStatusBar() {
-	x, y := e.calcCursorXY(e.Cursor)
-
-	// Construct message for debugging.
-	var str string
-	for _, user := range e.Users {
-		str += user + " "
-	}
-	str += "|" + fmt.Sprintf(" x=%d, y=%d, cursor=%d, len(text)=%d", x, y, e.Cursor, len(e.Text))
-
-	for i, r := range []rune(str) {
+// DrawStatusMsg draws the editor's status message at the bottom of the
+// termbox window.
+func (e *Editor) DrawStatusMsg() {
+	for i, r := range []rune(e.StatusMsg) {
 		termbox.SetCell(i, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
 	}
+}
 
-	if e.IsConnected {
-		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorGreen)
-	} else {
-		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorRed)
+// DrawInfoBar draws the editor's debug information and the names of the
+// active users in the editing session at the bottom of the termbox window.
+func (e *Editor) DrawInfoBar() {
+	x, y := e.calcCursorXY(e.Cursor)
+
+	i := 0
+	for j, user := range e.Users {
+		for _, r := range user {
+			termbox.SetCell(i, e.Height-1, r, userColors[j], termbox.ColorDefault)
+			i++
+		}
+		termbox.SetCell(i, e.Height-1, ' ', termbox.ColorDefault, termbox.ColorDefault)
+		i++
 	}
+
+	debugInfo := fmt.Sprintf(" x=%d, y=%d, cursor=%d, len(text)=%d", x, y, e.Cursor, len(e.Text))
+
+	for _, r := range debugInfo {
+		termbox.SetCell(i, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
+		i++
+	}
+
 }
 
 // MoveCursor updates the cursor position horizontally by a given x increment, and
@@ -325,6 +346,7 @@ func (e *Editor) calcCursorUp() int {
 	}
 }
 
+// calcCursorDown calculates and returns the intended cursor position after moving the cursor down one line.
 func (e *Editor) calcCursorDown() int {
 	pos := e.Cursor
 	offset := 0

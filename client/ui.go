@@ -42,6 +42,8 @@ func mainLoop(conn *websocket.Conn) error {
 	// msgChan is used for sending and receiving messages.
 	msgChan := getMsgChan(conn)
 
+	handleStatusMsg()
+
 	for {
 		select {
 		case termboxEvent := <-termboxChan:
