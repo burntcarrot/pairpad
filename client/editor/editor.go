@@ -214,23 +214,23 @@ func (e *Editor) DrawStatusMsg() {
 // DrawInfoBar draws the editor's debug information and the names of the
 // active users in the editing session at the bottom of the termbox window.
 func (e *Editor) DrawInfoBar() {
-	x, y := e.calcCursorXY(e.Cursor)
-
-	i := 0
-	for j, user := range e.Users {
+	x := 0
+	for i, user := range e.Users {
 		for _, r := range user {
-			termbox.SetCell(i, e.Height-1, r, userColors[j], termbox.ColorDefault)
-			i++
+			colorIdx := i % len(userColors)
+			termbox.SetCell(x, e.Height-1, r, userColors[colorIdx], termbox.ColorDefault)
+			x++
 		}
-		termbox.SetCell(i, e.Height-1, ' ', termbox.ColorDefault, termbox.ColorDefault)
-		i++
+		termbox.SetCell(x, e.Height-1, ' ', termbox.ColorDefault, termbox.ColorDefault)
+		x++
 	}
 
-	debugInfo := fmt.Sprintf(" x=%d, y=%d, cursor=%d, len(text)=%d", x, y, e.Cursor, len(e.Text))
+	cx, cy := e.calcCursorXY(e.Cursor)
+	debugInfo := fmt.Sprintf(" x=%d, y=%d, cursor=%d, len(text)=%d", cx, cy, e.Cursor, len(e.Text))
 
 	for _, r := range debugInfo {
-		termbox.SetCell(i, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
-		i++
+		termbox.SetCell(x, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
+		x++
 	}
 
 }

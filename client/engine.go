@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -36,12 +37,12 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			err := crdt.Save(fileName, &doc)
 			if err != nil {
 				logrus.Errorf("Failed to save to %s", fileName)
-				e.StatusChan <- "Failed to save to " + fileName
+				e.StatusChan <- fmt.Sprintf("Failed to save to %s", fileName)
 				return err
 			}
 
 			// Set the status bar.
-			e.StatusChan <- "Saved document to " + fileName
+			e.StatusChan <- fmt.Sprintf("Saved document to %s", fileName)
 
 		// The default key for loading content from a file is Ctrl+L.
 		case termbox.KeyCtrlL:
@@ -50,11 +51,10 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 				newDoc, err := crdt.Load(fileName)
 				if err != nil {
 					logrus.Errorf("failed to load file %s", fileName)
-					e.StatusChan <- "Failed to load " + fileName
+					e.StatusChan <- fmt.Sprintf("Failed to load %s", fileName)
 					return err
 				}
-				// e.ShowStatusMsg("Loading " + fileName)
-				e.StatusChan <- "Loading " + fileName
+				e.StatusChan <- fmt.Sprintf("Loading %s", fileName)
 				doc = newDoc
 				e.SetX(0)
 				e.SetText(crdt.Content(doc))
@@ -214,7 +214,7 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 		logger.Infof("SITE ID %v, INTENDED SITE ID: %v", crdt.SiteID, siteID)
 
 	case commons.JoinMessage:
-		e.StatusChan <- msg.Username + " has joined the session!"
+		e.StatusChan <- fmt.Sprintf("%s has joined the session!", msg.Username)
 
 	case commons.UsersMessage:
 		e.Users = strings.Split(msg.Text, ",")
