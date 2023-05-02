@@ -283,19 +283,15 @@ func getMsgChan(conn *websocket.Conn) chan commons.Message {
 // handleStatusMsg asynchronously waits for messages from e.StatusChan and
 // displays the message when it arrives.
 func handleStatusMsg() {
-	go func() {
-		for {
-			select {
-			case msg := <-e.StatusChan:
-				e.StatusMsg = msg
-				logger.Infof("got status message: ", e.StatusMsg)
+	for msg := range e.StatusChan {
+		e.StatusMsg = msg
+		logger.Infof("got status message: %s", e.StatusMsg)
 
-				e.ShowMsg = true
-				e.Draw()
-				time.Sleep(3 * time.Second)
-				e.ShowMsg = false
-				e.Draw()
-			}
-		}
-	}()
+		e.ShowMsg = true
+		e.Draw()
+		time.Sleep(3 * time.Second)
+		e.ShowMsg = false
+		e.Draw()
+	}
+
 }

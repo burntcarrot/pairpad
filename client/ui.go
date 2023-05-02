@@ -26,6 +26,8 @@ func initUI(conn *websocket.Conn, conf UIConfig) error {
 	e.Draw()
 	e.IsConnected = true
 
+	go handleStatusMsg()
+
 	err = mainLoop(conn)
 	if err != nil {
 		return err
@@ -41,8 +43,6 @@ func mainLoop(conn *websocket.Conn) error {
 
 	// msgChan is used for sending and receiving messages.
 	msgChan := getMsgChan(conn)
-
-	handleStatusMsg()
 
 	for {
 		select {
