@@ -14,9 +14,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// handleTermboxEvent handles key input by updating the local CRDT document and sending a message over the WebSocket connection.
+// handleTermboxEvent handles key input by updating the local CRDT document
+// and sending a message over the WebSocket connection.
 func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
-
 	// We only want to deal with termbox key events (EventKey).
 	if ev.Type == termbox.EventKey {
 		switch ev.Key {
@@ -121,7 +121,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		}
 	}
 
-	e.Draw()
+	e.SendDraw()
 	return nil
 }
 
@@ -217,7 +217,9 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 		e.StatusChan <- fmt.Sprintf("%s has joined the session!", msg.Username)
 
 	case commons.UsersMessage:
+		e.StatusMu.Lock()
 		e.Users = strings.Split(msg.Text, ",")
+		e.StatusMu.Unlock()
 
 	default:
 		switch msg.Operation.Type {
@@ -249,7 +251,7 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 	// This is to ensure that the debug logs don't take up much space on the user's filesystem, and can be toggled on demand.
 	printDoc(doc)
 
-	e.Draw()
+	e.SendDraw()
 }
 
 // getMsgChan returns a message channel that repeatedly reads from a websocket connection.
@@ -284,14 +286,28 @@ func getMsgChan(conn *websocket.Conn) chan commons.Message {
 // displays the message when it arrives.
 func handleStatusMsg() {
 	for msg := range e.StatusChan {
+		e.StatusMu.Lock()
 		e.StatusMsg = msg
+		e.ShowMsg = true
+		e.StatusMu.Unlock()
+
 		logger.Infof("got status message: %s", e.StatusMsg)
 
-		e.ShowMsg = true
-		e.Draw()
+		e.SendDraw()
 		time.Sleep(3 * time.Second)
+
+		e.StatusMu.Lock()
 		e.ShowMsg = false
-		e.Draw()
+		e.StatusMu.Unlock()
+
+		e.SendDraw()
 	}
 
+}
+
+func drawLoop() {
+	for {
+		<-e.DrawChan
+		e.Draw()
+	}
 }
