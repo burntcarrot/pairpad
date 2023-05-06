@@ -35,13 +35,31 @@ type Clients struct {
 	nameUpdateRequests chan nameUpdate
 }
 
+// NewClients returns a new instance of a Clients struct.
+func NewClients() *Clients {
+	return &Clients{
+		list:               make(map[uuid.UUID]*client),
+		mu:                 sync.RWMutex{},
+		deleteRequests:     make(chan deleteRequest),
+		readRequests:       make(chan readRequest, 10000),
+		addRequests:        make(chan *client),
+		nameUpdateRequests: make(chan nameUpdate),
+	}
+}
+
 // a client holds the information of a connected client.
 type client struct {
-	Conn     *websocket.Conn
-	SiteID   string `json:"siteID"`
-	id       uuid.UUID
-	writeMu  sync.Mutex
-	Username string `json:"username"`
+	Conn   *websocket.Conn
+	SiteID string
+	id     uuid.UUID
+
+	// writeMu protects against concurrent writes to a WebSocket connection.
+	writeMu sync.Mutex
+
+	// mu protects against data races on a client's info
+	mu sync.Mutex
+
+	Username string
 }
 
 var (
@@ -117,6 +135,7 @@ func handleConn(w http.ResponseWriter, r *http.Request) {
 		SiteID:  strconv.Itoa(siteID),
 		id:      clientID,
 		writeMu: sync.Mutex{},
+		mu:      sync.Mutex{},
 	}
 	mu.Unlock()
 
@@ -217,7 +236,9 @@ func (c *Clients) handle() {
 			c.list[client.id] = client
 			c.mu.Unlock()
 		case n := <-c.nameUpdateRequests:
+			c.list[n.id].mu.Lock()
 			c.list[n.id].Username = n.newName
+			c.list[n.id].mu.Unlock()
 		}
 	}
 }
@@ -242,18 +263,6 @@ type readRequest struct {
 
 	// resp is the channel from which requesters can read the response.
 	resp chan *client
-}
-
-// NewClients returns a new instance of a Clients struct.
-func NewClients() *Clients {
-	return &Clients{
-		list:               make(map[uuid.UUID]*client),
-		mu:                 sync.RWMutex{},
-		deleteRequests:     make(chan deleteRequest),
-		readRequests:       make(chan readRequest),
-		addRequests:        make(chan *client),
-		nameUpdateRequests: make(chan nameUpdate),
-	}
 }
 
 // getAll requests all active clients from the clients list and returns a channel containing
@@ -373,11 +382,16 @@ func (c *Clients) close(id uuid.UUID) {
 // read reads a message over the client Conn, and stores the result in msg.
 func (c *client) read(msg *commons.Message) error {
 	err := c.Conn.ReadJSON(msg)
+
+	c.mu.Lock()
+	name := c.Username
+	c.mu.Unlock()
+
 	if err != nil {
 		if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-			color.Red("Failed to read message from client %s: %v", c.Username, err)
+			color.Red("Failed to read message from client %s: %v", name, err)
 		}
-		color.Red("client %v disconnected", c.Username)
+		color.Red("client %v disconnected", name)
 		clients.delete(c.id)
 		return err
 	}
