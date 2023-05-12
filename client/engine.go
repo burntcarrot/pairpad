@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/burntcarrot/pairpad/commons"
 	"github.com/burntcarrot/pairpad/crdt"
@@ -12,9 +14,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// handleTermboxEvent handles key input by updating the local CRDT document and sending a message over the WebSocket connection.
+// handleTermboxEvent handles key input by updating the local CRDT document
+// and sending a message over the WebSocket connection.
 func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
-
 	// We only want to deal with termbox key events (EventKey).
 	if ev.Type == termbox.EventKey {
 		switch ev.Key {
@@ -34,29 +36,25 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 			// Save the CRDT to a file.
 			err := crdt.Save(fileName, &doc)
 			if err != nil {
-				e.StatusMsg = "Failed to save to " + fileName
-				logrus.Errorf("failed to save to %s", fileName)
-				e.SetStatusBar()
+				logrus.Errorf("Failed to save to %s", fileName)
+				e.StatusChan <- fmt.Sprintf("Failed to save to %s", fileName)
 				return err
 			}
 
 			// Set the status bar.
-			e.StatusMsg = "Saved document to " + fileName
-			e.SetStatusBar()
+			e.StatusChan <- fmt.Sprintf("Saved document to %s", fileName)
 
 		// The default key for loading content from a file is Ctrl+L.
 		case termbox.KeyCtrlL:
 			if fileName != "" {
 				logger.Log(logrus.InfoLevel, "LOADING DOCUMENT")
 				newDoc, err := crdt.Load(fileName)
-				e.StatusMsg = "Loading " + fileName
-				e.SetStatusBar()
 				if err != nil {
-					e.StatusMsg = "Failed to load " + fileName
 					logrus.Errorf("failed to load file %s", fileName)
-					e.SetStatusBar()
+					e.StatusChan <- fmt.Sprintf("Failed to load %s", fileName)
 					return err
 				}
+				e.StatusChan <- fmt.Sprintf("Loading %s", fileName)
 				doc = newDoc
 				e.SetX(0)
 				e.SetText(crdt.Content(doc))
@@ -65,8 +63,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 				docMsg := commons.Message{Type: commons.DocSyncMessage, Document: doc}
 				_ = conn.WriteJSON(&docMsg)
 			} else {
-				e.StatusMsg = "No file to load!"
-				e.SetStatusBar()
+				e.StatusChan <- "No file to load!"
 			}
 
 		// The default keys for moving left inside the text area are the left arrow key, and Ctrl+B (move backward).
@@ -124,7 +121,7 @@ func handleTermboxEvent(ev termbox.Event, conn *websocket.Conn) error {
 		}
 	}
 
-	e.Draw()
+	e.SendDraw()
 	return nil
 }
 
@@ -170,10 +167,12 @@ func performOperation(opType int, ev termbox.Event, conn *websocket.Conn) {
 	}
 
 	// Send the message.
-	err := conn.WriteJSON(msg)
-	if err != nil {
-		e.StatusMsg = "lost connection!"
-		e.SetStatusBar()
+	if e.IsConnected {
+		err := conn.WriteJSON(msg)
+		if err != nil {
+			e.IsConnected = false
+			e.StatusChan <- "lost connection!"
+		}
 	}
 }
 
@@ -197,6 +196,7 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 		logger.Infof("DOCSYNC RECEIVED, updating local doc %+v\n", msg.Document)
 
 		doc = msg.Document
+		e.SetText(crdt.Content(doc))
 
 	case commons.DocReqMessage:
 		logger.Infof("DOCREQ RECEIVED, sending local document to %v\n", msg.ID)
@@ -214,8 +214,12 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 		logger.Infof("SITE ID %v, INTENDED SITE ID: %v", crdt.SiteID, siteID)
 
 	case commons.JoinMessage:
-		e.StatusMsg = fmt.Sprintf("%s has joined the session!", msg.Username)
-		e.SetStatusBar()
+		e.StatusChan <- fmt.Sprintf("%s has joined the session!", msg.Username)
+
+	case commons.UsersMessage:
+		e.StatusMu.Lock()
+		e.Users = strings.Split(msg.Text, ",")
+		e.StatusMu.Unlock()
 
 	default:
 		switch msg.Operation.Type {
@@ -247,7 +251,7 @@ func handleMsg(msg commons.Message, conn *websocket.Conn) {
 	// This is to ensure that the debug logs don't take up much space on the user's filesystem, and can be toggled on demand.
 	printDoc(doc)
 
-	e.Draw()
+	e.SendDraw()
 }
 
 // getMsgChan returns a message channel that repeatedly reads from a websocket connection.
@@ -263,6 +267,8 @@ func getMsgChan(conn *websocket.Conn) chan commons.Message {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					logger.Errorf("websocket error: %v", err)
 				}
+				e.IsConnected = false
+				e.StatusChan <- "lost connection!"
 				break
 			}
 
@@ -274,4 +280,34 @@ func getMsgChan(conn *websocket.Conn) chan commons.Message {
 		}
 	}()
 	return messageChan
+}
+
+// handleStatusMsg asynchronously waits for messages from e.StatusChan and
+// displays the message when it arrives.
+func handleStatusMsg() {
+	for msg := range e.StatusChan {
+		e.StatusMu.Lock()
+		e.StatusMsg = msg
+		e.ShowMsg = true
+		e.StatusMu.Unlock()
+
+		logger.Infof("got status message: %s", e.StatusMsg)
+
+		e.SendDraw()
+		time.Sleep(3 * time.Second)
+
+		e.StatusMu.Lock()
+		e.ShowMsg = false
+		e.StatusMu.Unlock()
+
+		e.SendDraw()
+	}
+
+}
+
+func drawLoop() {
+	for {
+		<-e.DrawChan
+		e.Draw()
+	}
 }

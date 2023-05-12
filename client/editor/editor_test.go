@@ -6,7 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestCalcCursorXY(t *testing.T) {
+func TestCalcXY(t *testing.T) {
 	tests := []struct {
 		description string
 		cursor      int
@@ -25,7 +25,7 @@ func TestCalcCursorXY(t *testing.T) {
 
 	for _, tc := range tests {
 		e.Cursor = tc.cursor
-		x, y := e.calcCursorXY(e.Cursor)
+		x, y := e.calcXY(e.Cursor)
 
 		got := []int{x, y}
 		expected := []int{tc.expectedX, tc.expectedY}

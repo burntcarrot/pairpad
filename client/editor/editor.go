@@ -2,7 +2,7 @@ package editor
 
 import (
 	"fmt"
-	"time"
+	"sync"
 
 	"github.com/mattn/go-runewidth"
 	"github.com/nsf/termbox-go"
@@ -38,32 +38,71 @@ type Editor struct {
 	// ShowMsg acts like a switch for the status bar.
 	ShowMsg bool
 
-	// StatusMsg represents the text displayed in the status bar.
+	// StatusMsg holds the text to be displayed in the status bar.
 	StatusMsg string
 
+	// StatusChan is used to send and receive status messages.
+	StatusChan chan string
+
+	// StatusMu protects against concurrent reads and writes to status bar info.
+	StatusMu sync.Mutex
+
+	// Users holds the names of all users connected to the server, displayed in the status bar.
+	Users []string
+
+	// ScrollEnabled determines whether or not the user can scroll past the initial editor
+	// window. It is set by the EditorConfig.
 	ScrollEnabled bool
+
+	// IsConnected shows whether the editor is currently connected to the server.
+	IsConnected bool
+
+	// DrawChan is used to send and receive signals to update the terminal display.
+	DrawChan chan int
+
+	// mu prevents concurrent reads and writes to the editor state.
+	mu sync.RWMutex
+}
+
+var userColors = []termbox.Attribute{
+	termbox.ColorGreen,
+	termbox.ColorYellow,
+	termbox.ColorBlue,
+	termbox.ColorMagenta,
+	termbox.ColorCyan,
+	termbox.ColorLightYellow,
+	termbox.ColorLightMagenta,
+	termbox.ColorLightGreen,
+	termbox.ColorLightRed,
+	termbox.ColorRed,
 }
 
 // NewEditor returns a new instance of the editor.
 func NewEditor(conf EditorConfig) *Editor {
 	return &Editor{
 		ScrollEnabled: conf.ScrollEnabled,
+		StatusChan:    make(chan string, 100),
+		DrawChan:      make(chan int, 10000),
 	}
 }
 
 // GetText returns the editor's content.
 func (e *Editor) GetText() []rune {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	return e.Text
 }
 
 // SetText sets the given string as the editor's content.
 func (e *Editor) SetText(text string) {
+	e.mu.Lock()
 	e.Text = []rune(text)
+	e.mu.Unlock()
 }
 
 // GetX returns the X-axis component of the current cursor position.
 func (e *Editor) GetX() int {
-	x, _ := e.calcCursorXY(e.Cursor)
+	x, _ := e.calcXY(e.Cursor)
 	return x
 }
 
@@ -74,7 +113,7 @@ func (e *Editor) SetX(x int) {
 
 // GetY returns the Y-axis component of the current cursor position.
 func (e *Editor) GetY() int {
-	_, y := e.calcCursorXY(e.Cursor)
+	_, y := e.calcXY(e.Cursor)
 	return y
 }
 
@@ -116,10 +155,21 @@ func (e *Editor) IncColOff(inc int) {
 	e.ColOff += inc
 }
 
+// SendDraw sends a draw signal to the drawLoop. Use this function to
+// ensure concurrency safety for rendering the editor.
+func (e *Editor) SendDraw() {
+	e.DrawChan <- 1
+}
+
 // Draw updates the UI by setting cells with the editor's content.
 func (e *Editor) Draw() {
 	_ = termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
-	cx, cy := e.calcCursorXY(e.Cursor)
+
+	e.mu.RLock()
+	cursor := e.Cursor
+	e.mu.RUnlock()
+
+	cx, cy := e.calcXY(cursor)
 
 	// draw cursor x position relative to row offset
 	if cx-e.GetColOff() > 0 {
@@ -132,6 +182,7 @@ func (e *Editor) Draw() {
 	}
 
 	termbox.SetCursor(cx-1, cy-1)
+
 	// find the starting and ending row of the termbox window.
 	yStart := e.GetRowOff()
 	yEnd := yStart + e.GetHeight() - 1 // -1 accounts for the status bar
@@ -155,40 +206,74 @@ func (e *Editor) Draw() {
 		}
 	}
 
-	if e.ShowMsg {
-		e.SetStatusBar()
-	} else {
-		e.showPositions()
-	}
+	e.DrawStatusBar()
 
 	// Flush back buffer!
 	termbox.Flush()
 }
 
-// SetStatusBar sets the message (e.StatusMsg) in the editor's status bar.
-// The message disappears automatically after 5 seconds, in order to simulate the "popup" effect.
-func (e *Editor) SetStatusBar() {
-	e.ShowMsg = true
-
-	for i, r := range []rune(e.StatusMsg) {
-		termbox.SetCell(i, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
+// DrawStatusBar shows all status and debug information on the bottom line of the editor.
+func (e *Editor) DrawStatusBar() {
+	e.StatusMu.Lock()
+	showMsg := e.ShowMsg
+	e.StatusMu.Unlock()
+	if showMsg {
+		e.DrawStatusMsg()
+	} else {
+		e.DrawInfoBar()
 	}
 
-	// Toggle showMsg to false to hide the message.
-	_ = time.AfterFunc(5*time.Second, func() {
-		e.ShowMsg = false
-	})
+	// Render connection indicator
+	if e.IsConnected {
+		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorGreen)
+	} else {
+		termbox.SetBg(e.Width-1, e.Height-1, termbox.ColorRed)
+	}
 }
 
-// showPositions shows the cursor positions with other details.
-func (e *Editor) showPositions() {
-	x, y := e.calcCursorXY(e.Cursor)
-
-	// Construct message for debugging.
-	str := fmt.Sprintf("x=%d, y=%d, cursor=%d, len(text)=%d", x, y, e.Cursor, len(e.Text))
-
-	for i, r := range []rune(str) {
+// DrawStatusMsg draws the editor's status message at the bottom of the
+// termbox window.
+func (e *Editor) DrawStatusMsg() {
+	e.StatusMu.Lock()
+	statusMsg := e.StatusMsg
+	e.StatusMu.Unlock()
+	for i, r := range []rune(statusMsg) {
 		termbox.SetCell(i, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
+	}
+}
+
+// DrawInfoBar draws the editor's debug information and the names of the
+// active users in the editing session at the bottom of the termbox window.
+func (e *Editor) DrawInfoBar() {
+	e.StatusMu.Lock()
+	users := e.Users
+	e.StatusMu.Unlock()
+
+	e.mu.RLock()
+	length := len(e.Text)
+	e.mu.RUnlock()
+
+	x := 0
+	for i, user := range users {
+		for _, r := range user {
+			colorIdx := i % len(userColors)
+			termbox.SetCell(x, e.Height-1, r, userColors[colorIdx], termbox.ColorDefault)
+			x++
+		}
+		termbox.SetCell(x, e.Height-1, ' ', termbox.ColorDefault, termbox.ColorDefault)
+		x++
+	}
+
+	e.mu.RLock()
+	cursor := e.Cursor
+	e.mu.RUnlock()
+
+	cx, cy := e.calcXY(cursor)
+	debugInfo := fmt.Sprintf(" x=%d, y=%d, cursor=%d, len(text)=%d", cx, cy, e.Cursor, length)
+
+	for _, r := range debugInfo {
+		termbox.SetCell(x, e.Height-1, r, termbox.ColorDefault, termbox.ColorDefault)
+		x++
 	}
 }
 
@@ -213,7 +298,7 @@ func (e *Editor) MoveCursor(x, y int) {
 	}
 
 	if e.ScrollEnabled {
-		cx, cy := e.calcCursorXY(newCursor)
+		cx, cy := e.calcXY(newCursor)
 
 		// move the window to adjust for the cursor
 		rowStart := e.GetRowOff()
@@ -247,8 +332,9 @@ func (e *Editor) MoveCursor(x, y int) {
 	if newCursor < 0 {
 		newCursor = 0
 	}
-
+	e.mu.Lock()
 	e.Cursor = newCursor
+	e.mu.Unlock()
 }
 
 // For the functions calcCursorUp and calcCursorDown, newline characters are found by iterating backward and forward from the current cursor position.
@@ -303,6 +389,7 @@ func (e *Editor) calcCursorUp() int {
 	}
 }
 
+// calcCursorDown calculates and returns the intended cursor position after moving the cursor down one line.
 func (e *Editor) calcCursorDown() int {
 	pos := e.Cursor
 	offset := 0
@@ -359,8 +446,9 @@ func (e *Editor) calcCursorDown() int {
 	}
 }
 
-// calcCursorXY returns the x and y coordinates of the given cursor index.
-func (e *Editor) calcCursorXY(index int) (int, int) {
+// calcXY returns the x and y coordinates of the cell at the given
+// index in the text.
+func (e *Editor) calcXY(index int) (int, int) {
 	x := 1
 	y := 1
 
@@ -368,16 +456,23 @@ func (e *Editor) calcCursorXY(index int) (int, int) {
 		return x, y
 	}
 
-	if index > len(e.Text) {
-		index = len(e.Text)
+	e.mu.RLock()
+	length := len(e.Text)
+	e.mu.RUnlock()
+
+	if index > length {
+		index = length
 	}
 
 	for i := 0; i < index; i++ {
-		if e.Text[i] == rune('\n') {
+		e.mu.RLock()
+		r := e.Text[i]
+		e.mu.RUnlock()
+		if r == rune('\n') {
 			x = 1
 			y++
 		} else {
-			x = x + runewidth.RuneWidth(e.Text[i])
+			x = x + runewidth.RuneWidth(r)
 		}
 	}
 	return x, y

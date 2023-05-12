@@ -64,9 +64,6 @@ func main() {
 	}
 	defer closeLogFiles(logFile, debugLogFile)
 
-	// Initialize document.
-	doc = crdt.New()
-
 	if flags.File != "" {
 		if doc, err = crdt.Load(flags.File); err != nil {
 			fmt.Printf("failed to load document: %s\n", err)

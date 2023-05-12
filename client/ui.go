@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/burntcarrot/pairpad/client/editor"
+	"github.com/burntcarrot/pairpad/crdt"
 	"github.com/gorilla/websocket"
 	"github.com/nsf/termbox-go"
 )
@@ -23,7 +24,13 @@ func initUI(conn *websocket.Conn, conf UIConfig) error {
 
 	e = editor.NewEditor(conf.EditorConfig)
 	e.SetSize(termbox.Size())
-	e.Draw()
+	e.SetText(crdt.Content(doc))
+	e.SendDraw()
+	e.IsConnected = true
+
+	go handleStatusMsg()
+
+	go drawLoop()
 
 	err = mainLoop(conn)
 	if err != nil {
